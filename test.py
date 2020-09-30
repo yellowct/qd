@@ -8,9 +8,9 @@ def test():
     return 'hello world'
 
 
-@app.route('/form', methods=['GET', 'POST'])
-def form():
-    return render_template('form.html')
+@app.route('/index')
+def index():
+    return render_template('index.html')
 
 
 # 验证登录
