@@ -1,6 +1,10 @@
 from flask import Flask, render_template, request
+import pymysql
+import json
 
 app = Flask(__name__)
+db = pymysql.connect('localhost', 'root', '', 'qidian')
+mysql = db.cursor()
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -13,12 +17,15 @@ def index():
     return render_template('index.html')
 
 
-# 验证登录
-@app.route('/login', methods=['POST'])
-def login():
-    user = request.form.get('user')
-    password = request.form.get('password')
-    return 'user is {} password is {}'.format(user, password)
+@app.route('/get_all', methods=['GET', 'POST'])
+def get_all():
+    sql = "select * from novels where name like %s"
+    mysql.execute(sql, ('%临%'))
+    res = mysql.fetchall()
+    # print(res)
+    # res = json.dumps(dict(res))
+    # print(type(res))
+    return ({'code': 0, 'status': 1, 'data': res})
 
 
 if __name__ == '__main__':

@@ -1,12 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
 <script src="{{url_for('static',filename='')}}"></script>
-<!-- <link rel="stylesheet" href="../static/css/mystyle.css"> -->
+<link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/4.3.1/css/bootstrap.min.css">
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+
 <head>
     <meta charset="UTF-8">
     <title>信息检测系统</title>
 </head>
+
 <body>
-<button>检测</button>
+    <div class="container" id="system">
+        <table>
+            <botton v-on:click="get_all">检测</botton>
+        </table>
+    </div>
 </body>
+
 </html>
+<script>
+    var example = new Vue({
+        el: '#system',
+        methods: {
+            get_all: function (event) {
+                axios.get('/get_all')
+                    .then((res) => {
+                        console.log(res.data)
+                    })
+                    .catch((err) => {
+                        console.log(err)
+                    })
+            }
+        }
+    })
+</script>
