@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<script src="{{url_for('static',filename='')}}"></script>
+<!-- <script src="{{url_for('static',filename='')}}"></script> -->
 <link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/4.3.1/css/bootstrap.min.css">
 <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
 <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
@@ -11,20 +11,49 @@
 </head>
 
 <body>
+    {% raw %}
     <div class="container" id="system">
-        <table>
-            <botton v-on:click="get_all">检测</botton>
+        <botton v-on:click="get_all">检测</botton>
+        <table v-if="show">
+            <tr>
+                <th>作品类型</th>
+                <th>数量</th>
+            </tr>
+            <tr v-for="(p, index) in list" :key="index">
+                <td v-for="value in p">{{value}}</td>
+            </tr>
         </table>
     </div>
+    {% endraw %}
 </body>
 
 </html>
 <script>
     var example = new Vue({
         el: '#system',
+        data:{
+            show:false,
+            list:[]
+        },
+        created:function(){
+            this.get_list();
+         
+        },
         methods: {
+            get_list:function(){
+                axios.get('/get_info')
+                    .then((res) => {
+                        // console.log(res.data)
+                        this.show=true
+                        this.list=res.data.data
+                        console.log(this.list)
+                    })
+                    .catch((err) => {
+                        console.log(err)
+                    })  
+            },
             get_all: function (event) {
-                axios.get('/get_all')
+                axios.get('/count')
                     .then((res) => {
                         console.log(res.data)
                     })
