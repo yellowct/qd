@@ -23,23 +23,32 @@ def index():
     return render_template('index.html')
 
 
+# 初始化页面数据
 @app.route('/get_info', methods=['GET'])
 def get_info():
-    sql = "select type,count(type) as total from novels group by type"
-    mysql.execute(sql)
-    res = mysql.fetchall()
-    # res= dict((x, y) for x, y in res)
+    # 获取上次更新时间
+    sql1 = "select date from novels"
+    # 统计作品数量
+    sql2 = "select count(*) from novels"
+    # 统计各类型数量
+    sql3 = "select type,count(type) as total from novels group by type"
+    mysql.execute(sql1)
+    data = mysql.fetchone()
+    #转换为其他日期格式
+    timeArray = time.localtime(data[0])
+    res1 = time.strftime("%Y-%m-%d", timeArray)
+    mysql.execute(sql2)
+    res2 = mysql.fetchone()
+    mysql.execute(sql3)
+    res3 = mysql.fetchall()
+    return ({'code': 1, 'data1': res1, 'data2': res2[0], 'data3': res3})
+
+
+# 爬取所有小说信息到数据库
+@app.route('/get_all', methods=['GET'])
+def get_list():
+    res = get_info()
     return ({'code': 1, 'data': res})
-
-
-# 统计各类型数量
-@app.route('/count', methods=['GET'])
-def count():
-    mysql.execute("select * from novels")
-    sql = mysql.fetchone()
-    if sql is None:
-        res = get_info()
-        return ({'code': 1, 'data': res})
 
 
 @app.route('/get_all', methods=['GET', 'POST'])
@@ -50,7 +59,7 @@ def get_all():
     # print(res)
     # res = json.dumps(dict(res))
     # print(type(res))
-    return ({'code': 0, 'status': 1, 'data': res})
+    return ({'code': 0, 'data': res})
 
 
 def random_user_agent():
