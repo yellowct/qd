@@ -24,8 +24,8 @@ def index():
 
 
 # 初始化页面数据
-@app.route('/get_info', methods=['GET'])
-def get_info():
+@app.route('/init', methods=['GET'])
+def init():
     # 获取上次更新时间
     sql1 = "select date from novels"
     # 统计作品数量
@@ -41,25 +41,38 @@ def get_info():
     res2 = mysql.fetchone()
     mysql.execute(sql3)
     res3 = mysql.fetchall()
-    return ({'code': 1, 'data1': res1, 'data2': res2[0], 'data3': res3})
+    arr = []
+    arr.append(res1)
+    result = [e + tuple(arr) for e in res3]
+
+    return ({
+        'code': 1,
+        'data1': result,
+        'data2': res2[0],
+        'data3': len(res3)
+    })
 
 
 # 爬取所有小说信息到数据库
-@app.route('/get_all', methods=['GET'])
+@app.route('/get_list', methods=['GET'])
 def get_list():
-    res = get_info()
-    return ({'code': 1, 'data': res})
+    delete = mysql.execute("delete from novels")
+    if delete:
+        res = get_info()
+        return ({'code': 1, 'data': res})
+    else:
+        return ({'code': 0, 'data': '爬取失败'})
 
 
-@app.route('/get_all', methods=['GET', 'POST'])
-def get_all():
-    sql = "select * from novels where name like %s"
-    mysql.execute(sql, ('%临%'))
-    res = mysql.fetchall()
-    # print(res)
-    # res = json.dumps(dict(res))
-    # print(type(res))
-    return ({'code': 0, 'data': res})
+# @app.route('/get_all', methods=['GET', 'POST'])
+# def get_all():
+#     sql = "select * from novels where name like %s"
+#     mysql.execute(sql, ('%临%'))
+#     res = mysql.fetchall()
+#     # print(res)
+#     # res = json.dumps(dict(res))
+#     # print(type(res))
+#     return ({'code': 0, 'data': res})
 
 
 def random_user_agent():

@@ -1,8 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <!-- <script src="{{url_for('static',filename='')}}"></script> -->
-<link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/4.3.1/css/bootstrap.min.css">
+<!-- 引入样式 -->
+<link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+<!-- <link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/4.3.1/css/bootstrap.min.css"> -->
+<!-- 引入组件库 -->
 <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+<script src="https://unpkg.com/element-ui/lib/index.js"></script>
 <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 
 <head>
@@ -12,14 +16,17 @@
 
 <body>
     {% raw %}
-    <div class="container" id="system">
-        <h5 class="text-center">小说信息统计表</h5>
-
-                <p>检测日期：{{date}}</p>
-                <botton class="btn btn-primary" v-on:click="get_all" type="botton">重新爬取</botton>
-            </th>
-        </tr>
-        <table v-if="show" class="table table-bordered">
+    <div id="system" style="margin-left: 20%;margin-right: 20%;">
+        <el-row :gutter="20">
+            <el-col :span="16">
+                <el-header align="center" style="font-size: 18px;">小说信息统计表</el-header>
+            </el-col>
+            <el-col :span="8">
+                <el-button type="primary" v-on:click="get_all" v-if="isDisable==false" size="small">重新爬取</el-button>
+                <el-button type="primary" type="botton" v-else disabled size="small">正在爬取</el-button>
+            </el-col>
+        </el-row>
+        <!-- <table v-if="show" class="table table-bordered">
             <tr>
                 <th>作品总数</th>
                 <th>{{count}}</th>
@@ -31,7 +38,20 @@
             <tr v-for="(p, index) in list" :key="index">
                 <td v-for="value in p">{{value}}</td>
             </tr>
-        </table>
+        </table> -->
+        <template>
+            <el-table :data="list.slice((currentPage - 1) * pageSize, currentPage*pageSize)" border style="width: 100%"
+                v-loading="loading" element-loading-text="爬取中，此过程需要几分钟">
+                <el-table-column prop="0" label="作品类型" width="300">
+                </el-table-column>
+                <el-table-column prop="1" label="数量" width="300">
+                </el-table-column>
+                <el-table-column prop="2" label="检测日期" width="300">
+                </el-table-column>
+            </el-table>
+            <el-pagination background layout="prev, pager, next" :total="pages" @current-change="current_change">
+            </el-pagination>
+        </template>
     </div>
     {% endraw %}
 </body>
@@ -40,11 +60,18 @@
 <script>
     var example = new Vue({
         el: '#system',
-        data: {
-            show: false,
-            list: [],
-            date: '',
-            count: ''
+        data() {
+            return {
+                show: false,
+                list: [],
+                date: '',
+                count: '',
+                isDisable: false,
+                pageSize: 10,
+                currentPage: 1,
+                pages: '',
+                loading: false
+            }
         },
         created: function () {
             this.init();
@@ -53,27 +80,51 @@
         },
         methods: {
             init: function () {
-                axios.get('/get_info')
+                axios.get('/init')
                     .then((res) => {
                         this.show = true
-                        this.date = res.data.data1
+                        // this.date = res.data.data1
                         this.count = res.data.data2
-                        this.list = res.data.data3
-                        console.log(this.list)
+                        this.list = res.data.data1
+                        this.pages = res.data.data3
                     })
                     .catch((err) => {
                         console.log(err)
                     })
             },
-            get_all: function (event) {
-                axios.get('/get_all')
-                    .then((res) => {
-                        console.log(res.data)
-                    })
-                    .catch((err) => {
-                        console.log(err)
-                    })
-            }
-        }
+            get_all: function () {
+                this.$confirm('确定重新爬取数据?', '提示', {
+                    confirmButtonText: '确定',
+                    cancelButtonText: '取消',
+                    type: 'warning'
+                }).then(() => {
+                    this.isDisable = true
+                    this.loading = true
+                    axios.get('/get_list')
+                        .then((res) => {
+                            this.init()
+                            this.isDisable = false
+                            this.loading = false
+                            this.$alert(res.data.data, {
+                                confirmButtonText: '确定',
+                            });
+                        })
+                        .catch((err) => {
+                            console.log(err)
+                        })
+
+                }).catch(() => {
+                    this.$message({
+                        type: 'info',
+                        message: '已取消'
+                    });
+                });
+
+            },
+            current_change: function (currentPage) {
+                this.currentPage = currentPage;
+            },
+        },
+
     })
 </script>
