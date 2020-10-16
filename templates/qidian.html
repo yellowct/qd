@@ -1,0 +1,128 @@
+<link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+<script src="https://unpkg.com/element-ui/lib/index.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+{% raw %}
+<br><br>
+<div id="qidian" style="margin-left: 20%;margin-right: 20%;">
+    <el-row :gutter="20">
+        <el-col :span="20">
+            <el-header align="center" style="font-size: 18px;">检测结果</el-header>
+        </el-col>
+        <el-col :span="4">
+            <el-button type="primary" v-on:click="get_all" v-if="isDisable==false" size="small">重新爬取</el-button>
+            <el-button type="primary" type="botton" v-else disabled size="small">正在爬取</el-button>
+        </el-col>
+    </el-row>
+    <!-- <template>
+        <el-table :data="list.slice((currentPage - 1) * pageSize, currentPage*pageSize)" border style="width: 100%"
+            v-loading="loading" element-loading-text="爬取中，此过程需要几分钟">
+            <el-table-column prop="0" label="作品类型" width="300">
+            </el-table-column>
+            <el-table-column prop="1" label="数量" width="300">
+            </el-table-column>
+            <el-table-column prop="2" label="检测日期" min-width="300">
+            </el-table-column>
+        </el-table>
+        <el-pagination background layout="prev, pager, next" :total="pages" @current-change="current_change">
+        </el-pagination>
+    </template> -->
+    <template>
+        <el-table :data="table" style="width: 100%" border v-loading="loading" element-loading-text="爬取中，此过程需要几分钟">
+            <el-table-column prop="who" label="检测单位" width="200">
+            </el-table-column>
+            <el-table-column prop="count" label="数量" width="150">
+            </el-table-column>
+            <el-table-column prop="type" label="作品类型" min-width="300">
+            </el-table-column>
+            <el-table-column prop="date" label="检测时间" width="150">
+            </el-table-column>
+        </el-table>
+    </template>
+    <br><br>
+    <el-row style="text-align: center;">
+        <el-col :span="6"><el-button type="primary">添加作品</el-button></el-col>
+        <el-col :span="6"><el-button type="primary">关键词抽检</el-button></el-col>
+        <el-col :span="6"><el-button type="primary">人工抽检</el-button></el-col>
+        <el-col :span="6"><el-button type="primary">网站综合评定</el-button></el-col>
+      </el-row>
+</div>
+{% endraw %}
+
+
+
+<script>
+    var example = new Vue({
+        el: '#qidian',
+        data() {
+            return {
+                table: [{
+                    who: '网络信息检测后台',
+                    date: '',
+                    count: '',
+                    type: '',
+                }],
+                show: false,
+                // list: [],
+                isDisable: false,
+                // pageSize: 10,
+                // currentPage: 1,
+                // pages: '',
+                loading: false
+            }
+        },
+        created: function () {
+            this.init();
+            // this.get_date();
+
+        },
+        methods: {
+            init: function () {
+                axios.get('/init')
+                    .then((res) => {
+                        this.show = true
+                        // this.date = res.data.data1
+                        this.table[0].count = res.data.data2
+                        this.table[0].date = res.data.data1
+                        this.table[0].type = res.data.data3
+                    })
+                    .catch((err) => {
+                        console.log(err)
+                    })
+            },
+            get_all: function () {
+                this.$confirm('确定重新爬取数据?', '提示', {
+                    confirmButtonText: '确定',
+                    cancelButtonText: '取消',
+                    type: 'warning'
+                }).then(() => {
+                    this.isDisable = true
+                    this.loading = true
+                    axios.get('/get_list')
+                        .then((res) => {
+                            this.init()
+                            this.isDisable = false
+                            this.loading = false
+                            this.$alert(res.data.data, {
+                                confirmButtonText: '确定',
+                            });
+                        })
+                        .catch((err) => {
+                            console.log(err)
+                        })
+
+                }).catch(() => {
+                    this.$message({
+                        type: 'info',
+                        message: '已取消'
+                    });
+                });
+
+            },
+            current_change: function (currentPage) {
+                this.currentPage = currentPage;
+            },
+        },
+
+    })
+</script>

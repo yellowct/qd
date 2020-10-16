@@ -1,0 +1,45 @@
+<link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+<script src="https://unpkg.com/element-ui/lib/index.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<!-- <div id="header">
+    {% raw %}
+    <el-menu :default-active="activeIndex" class="el-menu-demo" mode="horizontal" @select="handleSelect"
+        background-color="#545c64" text-color="#fff" active-text-color="#ffd04b" route>
+        <el-menu-item v-for="(item,i) in navList" :key="i" :index="item.name">
+            {{ item.navItem }}
+        </el-menu-item>
+    </el-menu>
+    {% endraw %}
+</div>
+
+<script>
+    var example = new Vue({
+        el: '#header',
+        data() {
+            return {
+                navList: [
+                    { name: '/index', navItem: '首页' },
+                    { name: '/novel', navItem: '作品检测' },
+                    { name: '/keyword', navItem: '关键词抽检' },
+                    { name: '/manual', navItem: '人工抽检' },
+                    { name: '/judgment', navItem: '综合评定' },
+                ],
+            }
+        },
+        computed: {
+            activeIndex() {
+                url = window.location.pathname;
+                url = url.substring(url.lastIndexOf('/'), url.length);
+                return url
+            }
+        },
+        methods: {
+            handleSelect(key, keyPath) {
+                window.location.href = key
+                this.activeIndex(key)
+            }
+        },
+
+    })
+</script> -->

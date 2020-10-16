@@ -1,12 +1,12 @@
 from flask import Flask, render_template, request
 import pymysql
-import json
 import requests
 import random
 import traceback
 from lxml import etree
 from requests.cookies import RequestsCookieJar
 import time
+from itertools import chain
 
 app = Flask(__name__)
 db = pymysql.connect('localhost', 'root', '', 'qidian')
@@ -23,34 +23,60 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/pages', methods=['GET'])
+def pages():
+    name = request.args.get('name')
+    url = '/' + name
+    return ({'code': 1, 'data': url})
+
+
+@app.route('/qidian')
+def qidian():
+    return render_template('qidian.html')
+
+
+@app.route('/novel')
+def url():
+    return render_template('novel.html')
+
+
+# @app.route('/keyword')
+# def keyword():
+#     return render_template('keyword.html')
+
+# @app.route('/manual')
+# def manual():
+#     return render_template('manual.html')
+
+# @app.route('/judgment')
+# def judgment():
+#     return render_template('judgment.html')
+
+
 # 初始化页面数据
 @app.route('/init', methods=['GET'])
 def init():
     # 获取上次更新时间
     sql1 = "select date from novels"
-    # 统计作品数量
-    sql2 = "select count(*) from novels"
-    # 统计各类型数量
-    sql3 = "select type,count(type) as total from novels group by type"
     mysql.execute(sql1)
     data = mysql.fetchone()
     #转换为其他日期格式
     timeArray = time.localtime(data[0])
     res1 = time.strftime("%Y-%m-%d", timeArray)
+    # 统计作品数量
+    sql2 = "select count(*) from novels"
     mysql.execute(sql2)
     res2 = mysql.fetchone()
+    # 整合所有类型
+    sql3 = "select DISTINCT  type from novels group by type"
     mysql.execute(sql3)
     res3 = mysql.fetchall()
-    arr = []
-    arr.append(res1)
-    result = [e + tuple(arr) for e in res3]
+    resultlist = list(chain.from_iterable(res3))
+    res3 = '、'.join(resultlist)
+    # arr.append(res1)
+    # result = [e + tuple(arr) for e in res3]
 
-    return ({
-        'code': 1,
-        'data1': result,
-        'data2': res2[0],
-        'data3': len(res3)
-    })
+    return ({'code': 1, 'data1': res1, 'data2': res2[0], 'data3': res3})
 
 
 # 爬取所有小说信息到数据库
@@ -64,15 +90,20 @@ def get_list():
         return ({'code': 0, 'data': '爬取失败'})
 
 
-# @app.route('/get_all', methods=['GET', 'POST'])
-# def get_all():
-#     sql = "select * from novels where name like %s"
-#     mysql.execute(sql, ('%临%'))
-#     res = mysql.fetchall()
-#     # print(res)
-#     # res = json.dumps(dict(res))
-#     # print(type(res))
-#     return ({'code': 0, 'data': res})
+@app.route('/find_novel', methods=['GET', 'POST'])
+def get_all():
+    data = request.args.get('novel')
+    sql = "select name from novels where name like %s"
+    val = '%' + data + '%'
+    mysql.execute(sql, (val))
+    res = mysql.fetchall()
+    new = []
+    for i in range(len(res)):
+        new.append(res[i][0])
+    print(new)
+    # res = json.dumps(dict(res))
+    # print(type(res))
+    return ({'code': 0, 'data': new})
 
 
 def random_user_agent():

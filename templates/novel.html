@@ -1,0 +1,72 @@
+{%include 'header.html'%}
+{% raw %}
+<br><br>
+<div id="novel" style="margin-left: 20%;margin-right: 20%;">
+    <el-row :gutter="20">
+        <el-col :span="16">
+            <template>
+                <el-select v-model="value" filterable remote reserve-keyword placeholder="请输入关键词"
+                    :remote-method="remoteMethod" :loading="loading">
+                    <el-option v-for="item in options" :key="item.value" :label="item.label" :value="item.value">
+                    </el-option>
+                </el-select>
+            </template>
+        </el-col>
+        <el-col :span="8">
+            <el-button type="primary">检测</el-button>
+        </el-col>
+    </el-row>
+</div>
+{% endraw %}
+
+<script>
+    var example = new Vue({
+        el: '#novel',
+        data() {
+            return {
+                options: [],
+                value: [],
+                list: [],
+                loading: false,
+                states: []
+            }
+        }, mounted() {
+            this.list = this.states.map(item => {
+                return { value: `value:${item}`, label: `label:${item}` };
+            });
+        }, computed: {
+            listSet() {
+                return this.states.map(item => {
+                    return { value: `value:${item}`, label: `${item}` };
+                });
+            }
+        }, methods: {
+            remoteMethod(query) {
+                if (query !== '') {
+                    this.loading = true;
+                    axios.get('/find_novel', {
+                        params: {
+                            novel: query
+                        }
+                    })
+                        .then((res) => {
+                            setTimeout(() => {
+                                this.states = res.data.data
+                                // console.log(res.data.data)
+                                this.loading = false;
+                                this.options = this.list.filter(item => {
+                                    return item.label.toLowerCase()
+                                        .indexOf(query.toLowerCase()) > -1;
+                                });
+                            }, 200);
+                        })
+                        .catch((err) => {
+                            console.log(err)
+                        })
+                } else {
+                    this.options = [];
+                }
+            }
+        }
+    })
+</script>
