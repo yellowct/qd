@@ -51,7 +51,9 @@
                     })
                         .then((res) => {
                             setTimeout(() => {
-                                this.states = res.data.data
+                                arr=Object.entires(res.data.data)
+                                // print(arr)
+                                this.data.states = arr
                                 // console.log(res.data.data)
                                 this.loading = false;
                                 this.options = this.list.filter(item => {

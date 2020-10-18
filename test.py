@@ -9,7 +9,7 @@ import time
 from itertools import chain
 
 app = Flask(__name__)
-db = pymysql.connect('localhost', 'root', '', 'qidian')
+db = pymysql.connect('localhost', 'root', 'root', 'qidian')
 mysql = db.cursor()
 
 
@@ -23,6 +23,11 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/qidian')
+def qidian():
+    return render_template('qidian.html')
+
+# 页面跳转
 @app.route('/pages', methods=['GET'])
 def pages():
     name = request.args.get('name')
@@ -30,37 +35,38 @@ def pages():
     return ({'code': 1, 'data': url})
 
 
-@app.route('/qidian')
-def qidian():
-    return render_template('qidian.html')
-
-
 @app.route('/novel')
 def url():
     return render_template('novel.html')
 
 
-# @app.route('/keyword')
-# def keyword():
-#     return render_template('keyword.html')
+@app.route('/get_novel', methods=['GET'])
+def get_novel():
+    book_id = request.args.get('id')
+    run = get_content(book_id)
+    sql2 = "select * from novels where book_id  = %s"
+    mysql.execute(sql2, book_id)
+    novel_info = mysql.fetchone()
+    sql2 = "select * from novels where book_id  = %s"
+    # checked=[]
+    sql3 = "select count(*),sum(word_nums) from novels where status = 1"
+    mysql.execute(sql3)
+    res1 = mysql.fetchone()
+    sql4 = "select count(*) from chapters"
+    mysql.execute(sql4)
+    res2 = mysql.fetchone()
+    check_list = list((*res1, *res2))
+    # print(res)
+    return ({'code': 1, 'data': novel_info, 'check_list': check_list})
 
-# @app.route('/manual')
-# def manual():
-#     return render_template('manual.html')
-
-# @app.route('/judgment')
-# def judgment():
-#     return render_template('judgment.html')
-
-
-# 初始化页面数据
+# 初始化首页数据
 @app.route('/init', methods=['GET'])
 def init():
     # 获取上次更新时间
     sql1 = "select date from novels"
     mysql.execute(sql1)
     data = mysql.fetchone()
-    #转换为其他日期格式
+    # 转换为其他日期格式
     timeArray = time.localtime(data[0])
     res1 = time.strftime("%Y-%m-%d", timeArray)
     # 统计作品数量
@@ -83,27 +89,19 @@ def init():
 @app.route('/get_list', methods=['GET'])
 def get_list():
     delete = mysql.execute("delete from novels")
-    if delete:
-        res = get_info()
-        return ({'code': 1, 'data': res})
-    else:
-        return ({'code': 0, 'data': '爬取失败'})
+    res = get_info()
+    return res
 
-
+# 添加作品检索
 @app.route('/find_novel', methods=['GET', 'POST'])
 def get_all():
     data = request.args.get('novel')
-    sql = "select name from novels where name like %s"
+    sql = "select book_id,name from novels where name like %s"
     val = '%' + data + '%'
     mysql.execute(sql, (val))
     res = mysql.fetchall()
-    new = []
-    for i in range(len(res)):
-        new.append(res[i][0])
-    print(new)
-    # res = json.dumps(dict(res))
-    # print(type(res))
-    return ({'code': 0, 'data': new})
+    res = list(res)
+    return ({'code': 0, 'data': res})
 
 
 def random_user_agent():
@@ -244,17 +242,19 @@ def spider(url, headers):
 
 
 # 爬取小说内容
-def run(book_id):
+def get_content(book_id):
     headers = {'User-Agent': random_user_agent()}
     url = "https://book.qidian.com/info/" + book_id
     html = requests.get(url, headers=headers).text
     html = etree.HTML(html)
-    name = html.xpath('//div[@class="book-info "]/h1/em/text()')  #爬取书名
-    Lit_tit_list = html.xpath('//ul[@class="cf"]/li/a/text()')  #爬取每个章节名字
-    Lit_href_list = html.xpath('//ul[@class="cf"]/li/a/@href')  #每个章节链接
+    name = html.xpath('//div[@class="book-info "]/h1/em/text()')  # 爬取书名
+    Lit_tit_list = html.xpath('//ul[@class="cf"]/li/a/text()')  # 爬取每个章节名字
+    Lit_href_list = html.xpath('//ul[@class="cf"]/li/a/@href')  # 每个章节链接
+    chap_nums = len(Lit_tit_list)
     # print(Lit_tit_list)
     # print(Lit_href_list)
     stop = 1
+    word_nums = 0
     for tit, src in zip(Lit_tit_list, Lit_href_list):
         url = "http:" + src
         res = spider(url, headers)
@@ -262,14 +262,13 @@ def run(book_id):
         text_list = html.xpath(
             '//div[@class="read-content j_readContent"]/p/text()')
         text = "".join(text_list).replace('　　', '')
-        print(text)
-        exit()
+        word_nums += len(text)
         # file_name = tit + ".txt"
         print("正在抓取文章：" + tit)
         # db['novels'].insert_one({'name': name[0], 'chapter': tit})
         # db['chapters'].insert_one({'name': tit, 'content': text})
-        sql = "insert IGNORE into chapters (novel,chapter,content) values (%s,%s,%s)"
-        mysql.execute(sql, (name[0], tit, text))
+        sql = "insert IGNORE into chapters (book_id,novel,chapter,content) values (%s,%s,%s,%s)"
+        mysql.execute(sql, (book_id, name[0], tit, text))
         db.commit()
         # with open(r'D:\Python\book//' + file_name, 'a', encoding="utf-8") as f:
         #     f.write("\t" + tit + '\n' + text)
@@ -277,6 +276,11 @@ def run(book_id):
             time.sleep(2)
             print('休息2秒')
         stop += 1
+    word_nums = round(float(word_nums)/10000, 2)
+    sql = "UPDATE novels SET chap_nums = %s,word_nums=%s,status=1 WHERE book_id = %s"
+    mysql.execute(sql, (chap_nums, word_nums, book_id))
+    db.commit()
+    return "爬取完成"
 
 
 # 爬取各类型小说的信息
@@ -284,9 +288,9 @@ def get_info():
     res1 = getType('man')
     res2 = getType('woman')
     if res1 == 'succ' and res2 == 'succ':
-        return '爬取成功'
+        return ({'code': 1, 'data': '爬取成功'})
     else:
-        return '爬取失败'
+        return ({'code': 1, 'data': '爬取失败'})
 
 
 def getType(sex):
@@ -311,7 +315,7 @@ def getType(sex):
         type_name = html.xpath(
             '//div[@class="sub-type"]/dl[@class!="hidden"]/dd/a/text()')
         for src, t_name in zip(subCateId, type_name):
-            for i in range(1, 6):
+            for i in range(1, 2):
                 headers = {'User-Agent': random_user_agent()}
                 url = "http:" + src + '&page=' + str(i)
                 res = spider(url, headers)
@@ -334,38 +338,6 @@ def getType(sex):
                     db.commit()
     return 'succ'
 
-
-# def test():
-#     # 打开数据库连接
-
-#     sql = "select * from chapters where novel = %s"
-#     mysql.execute(sql, ('不会真有人觉得修仙难吧'))
-#     res = mysql.fetchall()
-#     for i in res:
-#         print(i)
-#     # db.commit()
-#     # 使用 cursor() 方法创建一个游标对象 cursor
-
-#     # 使用 execute()  方法执行 SQL 查询
-
-#     # 使用 fetchone() 方法获取单条数据.
-#     # data = cursor.fetchone()
-#     # sql='select * from novels'
-#     # cursor.execute(sql)
-#     # res=cursor.fetchone()
-#     # print(res)
-#     # print (" version : %s " % data)
-
-#     # 关闭数据库连接
-#     # db.close()
-
-# if __name__ == '__main__':
-#     db = pymysql.connect('localhost', 'root', '', 'qidian')
-#     mysql = db.cursor()
-#     # test()
-#     run('1022899262')
-#     # getType(sex='man')
-#     # getType(sex='woman')
 
 if __name__ == '__main__':
     app.run()

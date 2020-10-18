@@ -1,34 +1,18 @@
-<link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
-<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
-<script src="https://unpkg.com/element-ui/lib/index.js"></script>
-<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+{%include 'header.html'%}
 {% raw %}
 <br><br>
 <div id="qidian" style="margin-left: 20%;margin-right: 20%;">
     <el-row :gutter="20">
         <el-col :span="20">
-            <el-header align="center" style="font-size: 18px;">检测结果</el-header>
+            <el-header align="center" style="font-size: 24px;">检测结果</el-header>
         </el-col>
         <el-col :span="4">
             <el-button type="primary" v-on:click="get_all" v-if="isDisable==false" size="small">重新爬取</el-button>
             <el-button type="primary" type="botton" v-else disabled size="small">正在爬取</el-button>
         </el-col>
     </el-row>
-    <!-- <template>
-        <el-table :data="list.slice((currentPage - 1) * pageSize, currentPage*pageSize)" border style="width: 100%"
-            v-loading="loading" element-loading-text="爬取中，此过程需要几分钟">
-            <el-table-column prop="0" label="作品类型" width="300">
-            </el-table-column>
-            <el-table-column prop="1" label="数量" width="300">
-            </el-table-column>
-            <el-table-column prop="2" label="检测日期" min-width="300">
-            </el-table-column>
-        </el-table>
-        <el-pagination background layout="prev, pager, next" :total="pages" @current-change="current_change">
-        </el-pagination>
-    </template> -->
     <template>
-        <el-table :data="table" style="width: 100%" border v-loading="loading" element-loading-text="爬取中，此过程需要几分钟">
+        <el-table :data="table" style="width: 100%" border v-loading="loading1" element-loading-text="爬取中，此过程需要几分钟">
             <el-table-column prop="who" label="检测单位" width="200">
             </el-table-column>
             <el-table-column prop="count" label="数量" width="150">
@@ -40,12 +24,47 @@
         </el-table>
     </template>
     <br><br>
+    <template>
+        <el-header align="center" style="font-size: 24px;">已检测作品结果</el-header>
+        <el-table :data="check_list" style="width: 100%" border :show-header="false">
+            <el-table-column prop="tit" label="1" width="350">
+            </el-table-column>
+            <el-table-column prop="con" label="2" min-width="300">
+            </el-table-column>
+        </el-table>
+    </template>
+    <br><br>
     <el-row style="text-align: center;">
-        <el-col :span="6"><el-button type="primary">添加作品</el-button></el-col>
-        <el-col :span="6"><el-button type="primary">关键词抽检</el-button></el-col>
-        <el-col :span="6"><el-button type="primary">人工抽检</el-button></el-col>
-        <el-col :span="6"><el-button type="primary">网站综合评定</el-button></el-col>
-      </el-row>
+        <el-col :span="6">
+            <el-button type="primary" @click="show_novel = true,novel_clean()">添加作品</el-button>
+        </el-col>
+        <el-col :span="6">
+            <el-button type="primary">关键词抽检</el-button>
+        </el-col>
+        <el-col :span="6">
+            <el-button type="primary">人工抽检</el-button>
+        </el-col>
+        <el-col :span="6">
+            <el-button type="primary">网站综合评定</el-button>
+        </el-col>
+    </el-row>
+    <el-dialog title="作品检测" :visible.sync="show_novel">
+        <template>
+            <el-select v-model="value" filterable remote reserve-keyword placeholder="请输入作品名称"
+                :remote-method="remoteMethod" :loading="loading2" @change="get_novel">
+                <el-option v-for="item in list" :key="item.key" :label="item.value" :value="item.key">
+                </el-option>
+            </el-select>
+            <el-header align="center" style="font-size: 24px;" v-model="novel_name">{{novel_name}}</el-header>
+            <el-table :data="novel_result" style="width: 100%" border :show-header="false" v-loading="loading3"
+                element-loading-text="作品检测中，请稍后">
+                <el-table-column prop="tit" width="350">
+                </el-table-column>
+                <el-table-column prop="con" min-width="300">
+                </el-table-column>
+            </el-table>
+        </template>
+    </el-dialog>
 </div>
 {% endraw %}
 
@@ -62,19 +81,61 @@
                     count: '',
                     type: '',
                 }],
+                check_list: [
+                    {
+                        tit: '已检测作品总数',
+                        con: ''
+                    },
+                    {
+                        tit: '已检测章节总数',
+                        con: ''
+                    },
+                    {
+                        tit: '已检测总字数/万字',
+                        con: ''
+                    },                   
+                ],
+                novel_result: [
+                    {
+                        tit: '作者',
+                        con: ''
+                    },
+                    {
+                        tit: '类型',
+                        con: ''
+                    },
+                    {
+                        tit: '检测章节数',
+                        con: ''
+                    },
+                    {
+                        tit: '检测字数/万字',
+                        con: ''
+                    },
+                    {
+                        tit: '检测章节数占比',
+                        con: ''
+                    },
+                    {
+                        tit: '检测字数占比',
+                        con: ''
+                    },
+                ],
                 show: false,
-                // list: [],
                 isDisable: false,
-                // pageSize: 10,
-                // currentPage: 1,
-                // pages: '',
-                loading: false
+                loading1: false,
+                options: [],
+                value: [],
+                list: [],
+                loading2: false,
+                states: [],
+                show_novel: false,
+                loading3: false,
+                novel_name: ''
             }
         },
         created: function () {
             this.init();
-            // this.get_date();
-
         },
         methods: {
             init: function () {
@@ -97,12 +158,12 @@
                     type: 'warning'
                 }).then(() => {
                     this.isDisable = true
-                    this.loading = true
+                    this.loading1 = true
                     axios.get('/get_list')
                         .then((res) => {
                             this.init()
                             this.isDisable = false
-                            this.loading = false
+                            this.loading1 = false
                             this.$alert(res.data.data, {
                                 confirmButtonText: '确定',
                             });
@@ -122,6 +183,59 @@
             current_change: function (currentPage) {
                 this.currentPage = currentPage;
             },
+            remoteMethod(query) {
+                if (query !== '') {
+                    this.loading2 = true;
+                    axios.get('/find_novel', {
+                        params: {
+                            novel: query
+                        }
+                    }).then((res) => {
+                        setTimeout(() => {
+                            console.log(res.data.data)
+                            this.states = res.data.data
+                            this.loading2 = false;
+                            this.list = this.states.map(item => ({ key: item[0], value: item[1] }))
+                        }, 200);
+                    }).catch((err) => {
+                        console.log(err)
+                    })
+                } else {
+                    this.options = [];
+                }
+            },
+            get_novel(val) {
+                this.loading3 = true
+                axios.get('/get_novel', {
+                    params: {
+                        id: val
+                    }
+                }).then((res) => {
+                    this.novel_name = res.data.data[2]
+                    this.novel_result[0].con = res.data.data[3]
+                    this.novel_result[1].con = res.data.data[4]
+                    this.novel_result[2].con = res.data.data[5]
+                    this.novel_result[3].con = res.data.data[6]
+                    this.novel_result[4].con = '100%'
+                    this.novel_result[5].con = '100%'
+                    this.loading3 = false
+                    this.check_list[0].con=res.data.check_list[0]
+                    this.check_list[1].con=res.data.check_list[2]
+                    this.check_list[2].con=res.data.check_list[1]
+                    // console.log(res.data.data)
+                }).catch((err) => {
+                    console.log(err)
+                })
+            },
+            novel_clean() {
+                this.novel_name = '',
+                this.novel_result[0].con = ''
+                this.novel_result[1].con = ''
+                this.novel_result[2].con = ''
+                this.novel_result[3].con = ''
+                this.novel_result[4].con = ''
+                this.novel_result[5].con = ''
+            }
         },
 
     })
