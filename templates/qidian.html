@@ -36,10 +36,10 @@
     <br><br>
     <el-row style="text-align: center;">
         <el-col :span="6">
-            <el-button type="primary" @click="show_novel = true,novel_clean()">添加作品</el-button>
+            <el-button type="primary" @click="show_novel=true">添加作品</el-button>
         </el-col>
         <el-col :span="6">
-            <el-button type="primary">关键词抽检</el-button>
+            <el-button type="primary" @click="show_akw_list=true,get_akw_list()">关键词抽检</el-button>
         </el-col>
         <el-col :span="6">
             <el-button type="primary">人工抽检</el-button>
@@ -59,11 +59,102 @@
             <el-table :data="novel_result" style="width: 100%" border :show-header="false" v-loading="loading3"
                 element-loading-text="作品检测中，请稍后">
                 <el-table-column prop="tit" width="350">
+                    <template slot-scope="scope">
+                        <span style="margin-left: 10px" v-if="scope.row.tit=='存在问题'">{{scope.row.tit}}&nbsp;
+                            <el-button type="primary" size="mini" @click="show_select_pro=true">编辑</el-button></span>
+                        <span style="margin-left: 10px" v-else>{{scope.row.tit}}</span>
+                    </template>
                 </el-table-column>
                 <el-table-column prop="con" min-width="300">
                 </el-table-column>
             </el-table>
+            <br>
+            <el-footer align="center">
+                <el-button type="primary" @click="show_nkw_list=true,get_kw_list()">关键敏感词查看</el-button>
+            </el-footer>
+            <el-dialog title="敏感关键词" :visible.sync="show_nkw_list" append-to-body>
+                <el-table :data="novel_kw_list" style="width: 100%" border>
+                    <el-table-column label="关键词" width="180">
+                        <template slot-scope="scope">
+                            <span style="margin-left: 10px">{{ scope.row[0]}}</span>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="出现次数" width="180">
+                        <template slot-scope="scope">
+                            <span style="margin-left: 10px">{{ scope.row[1]}}</span>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="出现章节">
+                        <template slot-scope="scope">
+                            <el-button size="mini" @click="show_chap_list=true,show_chap(scope.row[0])">查看详情
+                            </el-button>
+                        </template>
+                    </el-table-column>
+                </el-table>
+                <el-dialog title="敏感章节列表" :visible.sync="show_chap_list" append-to-body>
+                    <el-table :data="chap_list" style="width: 100%" border>
+                        <el-table-column label="章节" width="100">
+                            <template slot-scope="scope">
+                                <span style="margin-left: 10px">{{ scope.row[0]}}</span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="内容" min-width="300">
+                            <template slot-scope="scope">
+                                <span style="margin-left: 10px;font-size: 12px;" v-html="scope.row[1]"></span>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                </el-dialog>
+            </el-dialog>
+            <el-dialog title="编辑存在问题" :visible.sync="show_select_pro" append-to-body>
+                <el-select v-model="pro_values" multiple placeholder="请选择" style="width: 500px;">
+                    <el-option v-for="item in pro_options" :key="item.value" :label="item.label" :value="item.label">
+                    </el-option>
+                </el-select>
+                <el-button type="primary" size="mini" @click="save_pro()">保存</el-button>
+            </el-dialog>
         </template>
+    </el-dialog>
+    <el-dialog title="关键词抽检" :visible.sync="show_akw_list">
+        <el-table :data="all_kw_list" style="width: 100%" border>
+            <el-table-column label="关键词" width="180">
+                <template slot-scope="scope">
+                    <el-button size="mini" @click="get_kw_novels(scope.row[0])">{{ scope.row[0]}}
+                    </el-button>
+                </template>
+            </el-table-column>
+            <el-table-column label="出现次数" width="180">
+                <template slot-scope="scope">
+                    <span style="margin-left: 10px">{{ scope.row[1]}}</span>
+                </template>
+            </el-table-column>
+            <el-table-column label="出现作品数">
+                <template slot-scope="scope">
+                    <span style="margin-left: 10px">{{ scope.row[2]}}</span>
+                </template>
+            </el-table-column>
+        </el-table>
+        <el-dialog title="关键词出现作品" :visible.sync="show_kw_novels" append-to-body>
+            <el-table :data="kw_novels" style="width: 100%" border>
+                <el-table-column label="作品名称" width="180">
+                    <template slot-scope="scope">
+                        <el-button size="mini" @click="">{{ scope.row[0]}}
+                        </el-button>
+                    </template>
+                </el-table-column>
+                <el-table-column label="出现次数" width="180">
+                    <template slot-scope="scope">
+                        <span style="margin-left: 10px">{{ scope.row[1]}}</span>
+                    </template>
+                </el-table-column>
+                <el-table-column label="出现章节">
+                    <template slot-scope="scope">
+                        <el-button size="mini" @click="show_kwc_list=true,kw_chap(scope.row[0])">查看详情
+                        </el-button>
+                    </template>
+                </el-table-column>
+            </el-table>
+        </el-dialog>
     </el-dialog>
 </div>
 {% endraw %}
@@ -93,7 +184,32 @@
                     {
                         tit: '已检测总字数/万字',
                         con: ''
-                    },                   
+                    },
+                    {
+                        tit: '问题作品数',
+                        con: ''
+                    },
+                    {
+                        tit: '问题章节数',
+                        con: ''
+                    },
+                    {
+                        tit: '问题章节字数/万字',
+                        con: ''
+                    },
+                    {
+                        tit: '问题作品占比',
+                        con: ''
+                    },
+                    {
+                        tit: '问题章节占比',
+                        con: ''
+                    },
+                    {
+                        tit: '问题字数占比',
+                        con: ''
+                    },
+
                 ],
                 novel_result: [
                     {
@@ -120,6 +236,14 @@
                         tit: '检测字数占比',
                         con: ''
                     },
+                    {
+                        tit: '问题章节占比',
+                        con: ''
+                    },
+                    {
+                        tit: '存在问题',
+                        con: ''
+                    },
                 ],
                 show: false,
                 isDisable: false,
@@ -130,8 +254,62 @@
                 loading2: false,
                 states: [],
                 show_novel: false,
+                show_nkw_list: false,
+                show_chap_list: false,
                 loading3: false,
-                novel_name: ''
+                novel_name: '',
+                novel_id: '',
+                novel_kw_list: [],
+                chap_list: [],
+                show_select_pro: false,
+                pro_options: [
+                    {
+                        value: '1',
+                        label: '违法违规的涉政治内容'
+                    },
+                    {
+                        value: '2',
+                        label: '丑化英烈'
+                    },
+                    {
+                        value: '3',
+                        label: '宣扬恐怖主义、极端主义'
+                    },
+                    {
+                        value: '4',
+                        label: '煽动民族仇恨、民族歧视、破坏民族团结'
+                    },
+                    {
+                        value: '5',
+                        label: '宣扬邪教和封建迷信'
+                    },
+                    {
+                        value: '6',
+                        label: '不当评述自然灾害、重大事故等灾难'
+                    },
+                    {
+                        value: '7',
+                        label: '淫秽色情'
+                    },
+                    {
+                        value: '8',
+                        label: '宣扬暴力，展现血腥、惊悚、残忍等'
+                    },
+                    {
+                        value: '9',
+                        label: '宣扬、鼓励、渲染未成年人群殴、校园欺凌暴力、拉帮结派等内容'
+                    },
+                    {
+                        value: '10',
+                        label: '其他低俗不良内容'
+                    },
+                ],
+                pro_values: [],
+                show_akw_list:false,
+                all_kw_list:[],
+                show_kw_novels:false,
+                kw_novels:[],
+                show_kwc_list:[],
             }
         },
         created: function () {
@@ -146,6 +324,16 @@
                         this.table[0].count = res.data.data2
                         this.table[0].date = res.data.data1
                         this.table[0].type = res.data.data3
+
+                        this.check_list[0].con = res.data.check_list[0]
+                        this.check_list[1].con = res.data.check_list[2]
+                        this.check_list[2].con = res.data.check_list[1]
+                        this.check_list[3].con = res.data.check_list[3]
+                        this.check_list[4].con = res.data.check_list[4]
+                        this.check_list[5].con = res.data.check_list[5]
+                        this.check_list[6].con = this.percentage(res.data.check_list[3], res.data.check_list[0]) + '%'
+                        this.check_list[7].con = this.percentage(res.data.check_list[4], res.data.check_list[2]) + '%'
+                        this.check_list[8].con = this.percentage(res.data.check_list[5], res.data.check_list[1]) + '%'
                     })
                     .catch((err) => {
                         console.log(err)
@@ -186,6 +374,7 @@
             remoteMethod(query) {
                 if (query !== '') {
                     this.loading2 = true;
+                    this.novel_clean()
                     axios.get('/find_novel', {
                         params: {
                             novel: query
@@ -206,35 +395,130 @@
             },
             get_novel(val) {
                 this.loading3 = true
+                this.novel_id = val
                 axios.get('/get_novel', {
                     params: {
                         id: val
                     }
                 }).then((res) => {
-                    this.novel_name = res.data.data[2]
-                    this.novel_result[0].con = res.data.data[3]
-                    this.novel_result[1].con = res.data.data[4]
-                    this.novel_result[2].con = res.data.data[5]
-                    this.novel_result[3].con = res.data.data[6]
+                    this.novel_name = res.data.data[0]
+                    this.novel_result[0].con = res.data.data[1]
+                    this.novel_result[1].con = res.data.data[2]
+                    this.novel_result[2].con = res.data.data[3]
+                    this.novel_result[3].con = res.data.data[4]
                     this.novel_result[4].con = '100%'
                     this.novel_result[5].con = '100%'
+                    this.novel_result[6].con = this.percentage(res.data.data[5], res.data.data[3])+'%'
                     this.loading3 = false
-                    this.check_list[0].con=res.data.check_list[0]
-                    this.check_list[1].con=res.data.check_list[2]
-                    this.check_list[2].con=res.data.check_list[1]
+                    this.init()
                     // console.log(res.data.data)
                 }).catch((err) => {
                     console.log(err)
                 })
             },
+            percentage(a, b) {
+                if (!a || !b) {
+                    return 0
+                } else {
+                    return (Math.round(a / b * 10000) / 100);
+                }
+            },
             novel_clean() {
+                // this.novel_id = '',
+                this.novel_id = ''
                 this.novel_name = '',
-                this.novel_result[0].con = ''
+                    this.novel_result[0].con = ''
                 this.novel_result[1].con = ''
                 this.novel_result[2].con = ''
                 this.novel_result[3].con = ''
                 this.novel_result[4].con = ''
                 this.novel_result[5].con = ''
+                this.novel_result[6].con = ''
+                this.novel_kw_list = []
+                this.chap_list = []
+            },
+            get_kw_list() {
+                axios.get('/get_novel_kw_list', {
+                    params: {
+                        book_id: this.novel_id
+                    }
+                }).then((res) => {
+                    console.log(res.data)
+                    this.novel_kw_list = res.data.data
+                }).catch((err) => {
+                    console.log(err)
+                })
+            },
+            show_chap(val) {
+                axios.get('/get_chap_list', {
+                    params: {
+                        book_id: this.novel_id,
+                        key_word: val
+                    }
+                }).then((res) => {
+                    arr = res.data.data
+                    axios.get('/get_kw_type', {
+                        params: {
+                            key_word: val
+                        }
+                    }).then((res) => {
+                        type = res.data.data
+                        console.log(type)
+                        arr.forEach(item => {
+                            console.log(item)
+                            let start = item[1].indexOf(val)
+                            if (type == 0) {
+                                item[1] = item[1].substring(0, start) + '<span style="background:red;">' + val + '</span>' + item[1].substring(start + val.length)
+                            } else {
+                                item[1] = item[1].substring(0, start) + '<span style="background:yellow;">' + val + '</span>' + item[1].substring(start + val.length)
+                            }
+
+                        });
+                        this.chap_list = arr
+                    }).catch((err) => {
+                        console.log(err)
+                    })
+                }).catch((err) => {
+                    console.log(err)
+                })
+            },
+            save_pro() {
+                var pro = this.pro_values.join("  ")
+                console.log(pro)
+                axios.get('/save_pro', {
+                    params: {
+                        book_id: this.novel_id,
+                        pro: pro
+                    }
+                }).then((res) => {
+                    this.novel_result[7].con = pro
+                    this.$message(res.data.data)
+                    this.show_select_pro = false
+                }).catch((err) => {
+                    console.log(err)
+                })
+            },
+            get_akw_list() {
+                axios.get('/get_akw_list')
+                .then((res) => {
+                    // console.log(res.data.data)
+                    this.all_kw_list=res.data.data
+                })
+                .catch((err) => {
+                    console.log(err)
+                })
+            },
+            get_kw_novels(val){
+                axios.get('/get_kw_novels', {
+                    params: {
+                        key_word: val,
+                    }
+                }).then((res) => {
+                    this.show_kw_novels=true
+                    this.kw_novels=res.data.data
+                }).catch((err) => {
+                    console.log(err)
+                })
             }
         },
 

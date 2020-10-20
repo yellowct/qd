@@ -9,7 +9,7 @@ import time
 from itertools import chain
 
 app = Flask(__name__)
-db = pymysql.connect('localhost', 'root', 'root', 'qidian')
+db = pymysql.connect('localhost', 'root', '', 'qidian')
 mysql = db.cursor()
 
 
@@ -27,6 +27,7 @@ def index():
 def qidian():
     return render_template('qidian.html')
 
+
 # 页面跳转
 @app.route('/pages', methods=['GET'])
 def pages():
@@ -39,25 +40,6 @@ def pages():
 def url():
     return render_template('novel.html')
 
-
-@app.route('/get_novel', methods=['GET'])
-def get_novel():
-    book_id = request.args.get('id')
-    run = get_content(book_id)
-    sql2 = "select * from novels where book_id  = %s"
-    mysql.execute(sql2, book_id)
-    novel_info = mysql.fetchone()
-    sql2 = "select * from novels where book_id  = %s"
-    # checked=[]
-    sql3 = "select count(*),sum(word_nums) from novels where status = 1"
-    mysql.execute(sql3)
-    res1 = mysql.fetchone()
-    sql4 = "select count(*) from chapters"
-    mysql.execute(sql4)
-    res2 = mysql.fetchone()
-    check_list = list((*res1, *res2))
-    # print(res)
-    return ({'code': 1, 'data': novel_info, 'check_list': check_list})
 
 # 初始化首页数据
 @app.route('/init', methods=['GET'])
@@ -81,18 +63,29 @@ def init():
     res3 = '、'.join(resultlist)
     # arr.append(res1)
     # result = [e + tuple(arr) for e in res3]
+    check_list = get_checked()
 
-    return ({'code': 1, 'data1': res1, 'data2': res2[0], 'data3': res3})
+    return ({
+        'code': 1,
+        'data1': res1,
+        'data2': res2[0],
+        'data3': res3,
+        'check_list': check_list
+    })
 
 
 # 爬取所有小说信息到数据库
 @app.route('/get_list', methods=['GET'])
 def get_list():
-    delete = mysql.execute("delete from novels")
-    res = get_info()
-    return res
+    delete = clean_data()
+    if delete is not None:
+        return delete
+    else:
+        res = get_info()
+        return res
 
-# 添加作品检索
+
+# 添加作品检测
 @app.route('/find_novel', methods=['GET', 'POST'])
 def get_all():
     data = request.args.get('novel')
@@ -102,6 +95,137 @@ def get_all():
     res = mysql.fetchall()
     res = list(res)
     return ({'code': 0, 'data': res})
+
+
+# 获取作品检测结果
+@app.route('/get_novel', methods=['GET'])
+def get_novel():
+    book_id = request.args.get('id')
+    # get_content(book_id)
+    # check_kw(book_id)
+    novel_info = get_novel_info(book_id)
+    check_list = get_checked()
+    # bad_chap = get_bad(book_id)
+    return ({
+        'code': 1,
+        'data': novel_info,
+        'check_list': check_list,
+    })
+
+
+@app.route('/get_akw_list', methods=['GET'])
+def get_akw_list():
+    sql = "select key_word,count(key_word),count(distinct book_id) from bad_chap group by key_word"
+    mysql.execute(sql)
+    res = mysql.fetchall()
+    print(res)
+    # get_content(book_id)
+    # check_kw(book_id)
+    # bad_chap = get_bad(book_id)
+    return ({'code': 1, 'data': res})
+
+# 获取关键词作品列表
+@app.route('/get_kw_novels', methods=['GET'])
+def get_kw_novels():
+    key_word = request.args.get('key_word')
+    sql = "select novel,count(key_word) from bad_chap where key_word = %s group by key_word,novel"
+    mysql.execute(sql, key_word)
+    res = mysql.fetchall()
+    return ({'code': 1, 'data': res})
+
+
+# 保存存在问题
+@app.route('/save_pro', methods=['GET'])
+def save_pro():
+    pro = request.args.get('pro')
+    book_id = request.args.get('book_id')
+    sql = "update checked set pro = %s where book_id=%s"
+    res = mysql.execute(sql, (pro, book_id))
+    db.commit()
+    if (res):
+        return ({'code': 1, 'data': '保存成功'})
+    else:
+        return ({'code': 0, 'data': '保存失败'})
+
+
+# 敏感关键词查看
+@app.route('/get_novel_kw_list', methods=['GET'])
+def get_novel_kw_list():
+    book_id = request.args.get('book_id')
+    sql = "select key_word,count(key_word) from bad_chap where book_id = %s group by key_word"
+    mysql.execute(sql, book_id)
+    res = mysql.fetchall()
+    print(res)
+    return ({'code': 1, 'data': res})
+
+
+# 敏感章节列表
+@app.route('/get_chap_list', methods=['GET'])
+def get_chap_list():
+    book_id = request.args.get('book_id')
+    key_word = request.args.get('key_word')
+    sql = "select chapter,content from chapters where chapter in (select chapter from bad_chap where key_word = %s and book_id = %s)"
+    mysql.execute(sql, (key_word, book_id))
+    res = mysql.fetchall()
+    # print(res)
+    return ({'code': 1, 'data': res})
+
+
+# 获取敏感关键词类型
+@app.route('/get_kw_type', methods=['GET'])
+def get_kw_type():
+    key_word = request.args.get('key_word')
+    sql = "select type from key_words where val = %s"
+    mysql.execute(sql, key_word)
+    res = mysql.fetchone()
+    # print(res)
+    return ({'code': 1, 'data': res[0]})
+
+
+# 已检测作品结果
+def get_checked():
+    sql3 = "select count(*),sum(word_nums) from checked"
+    mysql.execute(sql3)
+    res1 = mysql.fetchone()
+    sql4 = "select count(*) from chapters"
+    mysql.execute(sql4)
+    res2 = mysql.fetchone()
+    sql4 = "select count(DISTINCT book_id),count(DISTINCT chapter),sum(DISTINCT word_nums) from bad_chap"
+    mysql.execute(sql4)
+    res3 = mysql.fetchone()
+    check_list = list((*res1, *res2, *res3))
+    return check_list
+
+
+# 添加作品检测结果
+def get_novel_info(book_id):
+    sql = "select a.name,a.author,b.type,a.chap_nums,a.word_nums from checked a left join novels b on a.book_id=b.book_id where a.book_id  = %s"
+    mysql.execute(sql, book_id)
+    res1 = mysql.fetchone()
+    sql = "select count(DISTINCT chapter) from bad_chap where book_id  = %s"
+    mysql.execute(sql, book_id)
+    res2 = mysql.fetchone()
+    novel_info = list((*res1, *res2))
+    print(novel_info)
+    return novel_info
+
+
+# 自动检测关键词
+def check_kw(book_id):
+    sql = "select novel,chapter,content from chapters where book_id = %s"
+    mysql.execute(sql, book_id)
+    chap_list = mysql.fetchall()
+    for novel, tit, chap in chap_list:
+        sql = "select val from key_words"
+        mysql.execute(sql)
+        word_list = mysql.fetchall()
+        for word in word_list:
+            if word[0] in chap:
+                words = len(chap)
+                word_nums = float(words) / 10000
+                sql = "insert into bad_chap (book_id,novel,chapter,key_word,word_nums) values (%s,%s,%s,%s,%s)"
+                mysql.execute(sql, (book_id, novel, tit, word[0], word_nums))
+                db.commit()
 
 
 def random_user_agent():
@@ -115,6 +239,16 @@ def random_user_agent():
     ]
     seed = random.randint(0, len(list) - 1)
     return list[seed]
+
+
+# 重新爬取前清理相关数据
+def clean_data():
+    sql1 = "delete from novels"
+    try:
+        mysql.execute(sql1)
+        db.commit()
+    except Exception:
+        return ({'code': 0, 'data': '重置数据失败'})
 
 
 # 模拟vip请求头
@@ -248,6 +382,7 @@ def get_content(book_id):
     html = requests.get(url, headers=headers).text
     html = etree.HTML(html)
     name = html.xpath('//div[@class="book-info "]/h1/em/text()')  # 爬取书名
+    author = html.xpath('//div[@class="book-info "]/h1/span/a/text()')  # 爬取作者名
     Lit_tit_list = html.xpath('//ul[@class="cf"]/li/a/text()')  # 爬取每个章节名字
     Lit_href_list = html.xpath('//ul[@class="cf"]/li/a/@href')  # 每个章节链接
     chap_nums = len(Lit_tit_list)
@@ -263,22 +398,17 @@ def get_content(book_id):
             '//div[@class="read-content j_readContent"]/p/text()')
         text = "".join(text_list).replace('　　', '')
         word_nums += len(text)
-        # file_name = tit + ".txt"
         print("正在抓取文章：" + tit)
-        # db['novels'].insert_one({'name': name[0], 'chapter': tit})
-        # db['chapters'].insert_one({'name': tit, 'content': text})
         sql = "insert IGNORE into chapters (book_id,novel,chapter,content) values (%s,%s,%s,%s)"
         mysql.execute(sql, (book_id, name[0], tit, text))
         db.commit()
-        # with open(r'D:\Python\book//' + file_name, 'a', encoding="utf-8") as f:
-        #     f.write("\t" + tit + '\n' + text)
         if stop % 50 == 0:
             time.sleep(2)
             print('休息2秒')
         stop += 1
-    word_nums = round(float(word_nums)/10000, 2)
-    sql = "UPDATE novels SET chap_nums = %s,word_nums=%s,status=1 WHERE book_id = %s"
-    mysql.execute(sql, (chap_nums, word_nums, book_id))
+    word_nums = round(float(word_nums) / 10000, 2)
+    sql = "insert into checked (book_id,name,author,chap_nums,word_nums) values (%s,%s,%s,%s,%s)"
+    mysql.execute(sql, (book_id, name[0], author[0], chap_nums, word_nums))
     db.commit()
     return "爬取完成"
 
@@ -319,22 +449,18 @@ def getType(sex):
                 headers = {'User-Agent': random_user_agent()}
                 url = "http:" + src + '&page=' + str(i)
                 res = spider(url, headers)
-                # print(html)
                 html = etree.HTML(res)
                 book_id_list = html.xpath(
                     '//div[@class="book-mid-info"]/h4/a/@href')
                 name_list = html.xpath(
                     '//div[@class="book-mid-info"]/h4/a/text()')
-                author_list = html.xpath(
-                    '//p[@class="author"]/a[@class="name"]/text()')
+                # author_list = html.xpath(
+                #     '//p[@class="author"]/a[@class="name"]/text()')
                 date = int(time.time())
-                # print(type_list)
-                # nums = html.xpath('//p[@class="update"]/span/span/text()')
-                for name, author, book_id in zip(name_list, author_list,
-                                                 book_id_list):
+                for name, book_id in zip(name_list, book_id_list):
                     book_id = book_id.split('info/')[-1]
-                    sql = "insert IGNORE into novels (book_id,name,author,type,date) values (%s,%s,%s,%s,%s)"
-                    mysql.execute(sql, (book_id, name, author, t_name, date))
+                    sql = "insert IGNORE into novels (book_id,name,type,date) values (%s,%s,%s,%s)"
+                    mysql.execute(sql, (book_id, name, t_name, date))
                     db.commit()
     return 'succ'
 
