@@ -9,7 +9,7 @@ import time
 from itertools import chain
 
 app = Flask(__name__)
-db = pymysql.connect('localhost', 'root', '', 'qidian')
+db = pymysql.connect('localhost', 'root', 'root', 'qidian')
 mysql = db.cursor()
 
 
@@ -101,8 +101,8 @@ def get_all():
 @app.route('/get_novel', methods=['GET'])
 def get_novel():
     book_id = request.args.get('id')
-    # get_content(book_id)
-    # check_kw(book_id)
+    get_content(book_id)
+    check_kw(book_id)
     novel_info = get_novel_info(book_id)
     check_list = get_checked()
     # bad_chap = get_bad(book_id)
@@ -112,7 +112,7 @@ def get_novel():
         'check_list': check_list,
     })
 
-
+# 获取关键词检索列表
 @app.route('/get_akw_list', methods=['GET'])
 def get_akw_list():
     sql = "select key_word,count(key_word),count(distinct book_id) from bad_chap group by key_word"
@@ -131,6 +131,17 @@ def get_kw_novels():
     sql = "select novel,count(key_word) from bad_chap where key_word = %s group by key_word,novel"
     mysql.execute(sql, key_word)
     res = mysql.fetchall()
+    return ({'code': 1, 'data': res})
+
+# 获取关键词作品章节列表
+@app.route('/get_kw_chaps', methods=['GET'])
+def get_kw_chaps():
+    key_word = request.args.get('key_word')
+    novel = request.args.get('novel')
+    sql = "select chapter,content from chapters where chapter in (select chapter from bad_chap where key_word = %s and novel = %s)"
+    mysql.execute(sql, (key_word, novel))
+    res = mysql.fetchall()
+    # print(res)
     return ({'code': 1, 'data': res})
 
 
@@ -395,7 +406,7 @@ def get_content(book_id):
         res = spider(url, headers)
         html = etree.HTML(res)
         text_list = html.xpath(
-            '//div[@class="read-content j_readContent"]/p/text()')
+            '//div[@class="read-content j_readContent "]/p/text()')
         text = "".join(text_list).replace('　　', '')
         word_nums += len(text)
         print("正在抓取文章：" + tit)

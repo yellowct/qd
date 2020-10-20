@@ -138,8 +138,8 @@
             <el-table :data="kw_novels" style="width: 100%" border>
                 <el-table-column label="作品名称" width="180">
                     <template slot-scope="scope">
-                        <el-button size="mini" @click="">{{ scope.row[0]}}
-                        </el-button>
+                        <span style="margin-left: 10px">{{ scope.row[0]}}
+                        </span>
                     </template>
                 </el-table-column>
                 <el-table-column label="出现次数" width="180">
@@ -149,11 +149,25 @@
                 </el-table-column>
                 <el-table-column label="出现章节">
                     <template slot-scope="scope">
-                        <el-button size="mini" @click="show_kwc_list=true,kw_chap(scope.row[0])">查看详情
+                        <el-button size="mini" @click="show_kw_chaps=true,get_kw_chaps(scope.row[0])">查看详情
                         </el-button>
                     </template>
                 </el-table-column>
             </el-table>
+            <el-dialog :visible.sync="show_kw_chaps" append-to-body>
+                <el-table :data="kw_chaps" style="width: 100%" border>
+                    <el-table-column label="章节" width="100">
+                        <template slot-scope="scope">
+                            <span style="margin-left: 10px">{{ scope.row[0]}}</span>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="内容" min-width="300" >
+                        <template slot-scope="scope">
+                            <span style="margin-left: 10px;font-size: 12px;" v-html="scope.row[1]"></span>
+                        </template>
+                    </el-table-column>
+                </el-table>
+            </el-dialog>
         </el-dialog>
     </el-dialog>
 </div>
@@ -305,11 +319,13 @@
                     },
                 ],
                 pro_values: [],
-                show_akw_list:false,
-                all_kw_list:[],
-                show_kw_novels:false,
-                kw_novels:[],
-                show_kwc_list:[],
+                show_akw_list: false,
+                all_kw_list: [],
+                show_kw_novels: false,
+                kw_novels: [],
+                show_kw_chaps: false,
+                kw_chaps: [],
+                key_word: ''
             }
         },
         created: function () {
@@ -408,7 +424,7 @@
                     this.novel_result[3].con = res.data.data[4]
                     this.novel_result[4].con = '100%'
                     this.novel_result[5].con = '100%'
-                    this.novel_result[6].con = this.percentage(res.data.data[5], res.data.data[3])+'%'
+                    this.novel_result[6].con = this.percentage(res.data.data[5], res.data.data[3]) + '%'
                     this.loading3 = false
                     this.init()
                     // console.log(res.data.data)
@@ -500,27 +516,62 @@
             },
             get_akw_list() {
                 axios.get('/get_akw_list')
-                .then((res) => {
-                    // console.log(res.data.data)
-                    this.all_kw_list=res.data.data
-                })
-                .catch((err) => {
-                    console.log(err)
-                })
+                    .then((res) => {
+                        // console.log(res.data.data)
+                        this.all_kw_list = res.data.data
+                    })
+                    .catch((err) => {
+                        console.log(err)
+                    })
             },
-            get_kw_novels(val){
+            get_kw_novels(val) {
+                this.key_word = val
                 axios.get('/get_kw_novels', {
                     params: {
                         key_word: val,
                     }
                 }).then((res) => {
-                    this.show_kw_novels=true
-                    this.kw_novels=res.data.data
+                    this.show_kw_novels = true
+                    this.kw_novels = res.data.data
                 }).catch((err) => {
                     console.log(err)
                 })
-            }
-        },
+            },
+            get_kw_chaps(val) {
+                var kw = this.key_word
+                axios.get('/get_kw_chaps', {
+                    params: {
+                        key_word: kw,
+                        novel: val
+                    }
+                }).then((res) => {
+                    arr = res.data.data
+                    axios.get('/get_kw_type', {
+                        params: {
+                            key_word: this.key_word
+                        }
+                    }).then((res) => {
+                        type = res.data.data
+                        // console.log(type)
+                        arr.forEach(item => {
+                            // console.log(item)
+                            let start = item[1].indexOf(kw)
+                            if (type == 0) {
+                                item[1] = item[1].substring(0, start) + '<span style="background:red;">' + kw + '</span>' + item[1].substring(start + kw.length)
+                            } else {
+                                item[1] = item[1].substring(0, start) + '<span style="background:yellow;">' + kw + '</span>' + item[1].substring(start + kw.length)
+                            }
+                        });
+                        this.kw_chaps = arr
+                        this.show_kw_chaps = true
+                    }).catch((err) => {
+                        console.log(err)
+                    })
+                }).catch((err) => {
+                    console.log(err)
+                })
+            },
 
+        }
     })
 </script>
