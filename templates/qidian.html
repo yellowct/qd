@@ -1,7 +1,7 @@
 {%include 'header.html'%}
 {% raw %}
 <br><br>
-<div id="qidian" style="margin-left: 20%;margin-right: 20%;">
+<div id="qidian" style="margin-left: 20%;margin-right: 20%;" v-loading="loading1" element-loading-text="爬取中，此过程需要几分钟">
     <el-row :gutter="20">
         <el-col :span="20">
             <el-header align="center" style="font-size: 24px;">检测结果</el-header>
@@ -12,7 +12,7 @@
         </el-col>
     </el-row>
     <template>
-        <el-table :data="table" style="width: 100%" border v-loading="loading1" element-loading-text="爬取中，此过程需要几分钟">
+        <el-table :data="table" style="width: 100%" border >
             <el-table-column prop="who" label="检测单位" width="200">
             </el-table-column>
             <el-table-column prop="count" label="数量" width="150">
@@ -42,10 +42,10 @@
             <el-button type="primary" @click="show_akw_list=true,get_akw_list()">关键词抽检</el-button>
         </el-col>
         <el-col :span="6">
-            <el-button type="primary">人工抽检</el-button>
+            <el-button type="primary" @click="show_manual=true,get_man_novels()">人工抽检</el-button>
         </el-col>
         <el-col :span="6">
-            <el-button type="primary">网站综合评定</el-button>
+            <el-button type="primary" @click="show_judge=true,get_judge()">网站综合评定</el-button>
         </el-col>
     </el-row>
     <el-dialog title="作品检测" :visible.sync="show_novel">
@@ -161,7 +161,7 @@
                             <span style="margin-left: 10px">{{ scope.row[0]}}</span>
                         </template>
                     </el-table-column>
-                    <el-table-column label="内容" min-width="300" >
+                    <el-table-column label="内容" min-width="300">
                         <template slot-scope="scope">
                             <span style="margin-left: 10px;font-size: 12px;" v-html="scope.row[1]"></span>
                         </template>
@@ -170,6 +170,97 @@
             </el-dialog>
         </el-dialog>
     </el-dialog>
+    <el-dialog title="人工抽检" :visible.sync="show_manual">
+        <el-form :model="manual_form" label-width="80px">
+            <el-form-item label="作品名称">
+                <el-select v-model="manual_form.novel" filterable placeholder="输入作品名或下拉选择">
+                    <el-option v-for="item in man_novels" :key="item[0]" :label="item[1]" :value="item[0]">
+                    </el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="关键词">
+                <el-input autosize v-model="manual_form.mkw" placeholder="需分析关键词最少两个中文，可多个关键词检测，以/符号划分。例子：独立/分裂国家">
+                </el-input>
+            </el-form-item>
+            <el-form-item>
+                <el-button type="primary" @click="onSubmit">检测</el-button>
+            </el-form-item>
+        </el-form>
+        <el-dialog title="人工抽检结果" :visible.sync="show_manual_list" append-to-body>
+            <el-table :data="manual_list" style="width: 100%" border>
+                <el-table-column label="关键词" width="180">
+                    <template slot-scope="scope">
+                        <span style="margin-left: 10px">{{ scope.row[0]}}</span>
+                    </template>
+                </el-table-column>
+                <el-table-column label="出现次数" width="180">
+                    <template slot-scope="scope">
+                        <span style="margin-left: 10px">{{ scope.row[1]}}</span>
+                    </template>
+                </el-table-column>
+                <el-table-column label="出现章节">
+                    <template slot-scope="scope">
+                        <el-button size="mini" @click="show_man_chap=true,get_man_chaps(scope.row[0])">查看详情
+                        </el-button>
+                    </template>
+                </el-table-column>
+            </el-table>
+            <br>
+            <el-footer align="center">
+                <el-button type="primary" @click="show_edit_pro=true">存在问题编辑</el-button>
+            </el-footer>
+            <el-dialog title="编辑存在问题" :visible.sync="show_edit_pro" append-to-body>
+                <el-select v-model="pro_values" multiple placeholder="请选择" style="width: 500px;">
+                    <el-option v-for="item in pro_options" :key="item.value" :label="item.label" :value="item.label">
+                    </el-option>
+                </el-select>
+                <el-button type="primary" size="mini" @click="edit_pro()">保存</el-button>
+            </el-dialog>
+            <el-dialog title="敏感章节列表" :visible.sync="show_chap_list" append-to-body>
+                <el-table :data="man_chap_list" style="width: 100%" border>
+                    <el-table-column label="章节" width="100">
+                        <template slot-scope="scope">
+                            <span style="margin-left: 10px">{{ scope.row[0]}}</span>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="内容" min-width="300">
+                        <template slot-scope="scope">
+                            <span style="margin-left: 10px;font-size: 12px;" v-html="scope.row[1]"></span>
+                        </template>
+                    </el-table-column>
+                </el-table>
+            </el-dialog>
+        </el-dialog>
+    </el-dialog>
+    <el-dialog title="已检测作品评定结果" :visible.sync="show_judge" append-to-body>
+        <el-table :data="judge_list" style="width: 100%" border>
+            <el-table-column label="作品名称" width="300">
+                <template slot-scope="scope">
+                    <span style="margin-left: 10px">{{ scope.row[0]}}</span>
+                </template>
+            </el-table-column>
+            <el-table-column label="检测分数" width="180">
+                <template slot-scope="scope">
+                    <span style="margin-left: 10px">{{ scope.row[1]}}</span>
+                </template>
+            </el-table-column>
+            <el-table-column label="检测结果评级">
+                <template slot-scope="scope">{{ scope.row[2]}}
+                </template>
+            </el-table-column>
+        </el-table>
+        <br>
+        <el-footer align="center">
+            <el-button type="primary" @click="show_chart=true,load_chart()">整体评定</el-button>
+        </el-footer>
+        <el-dialog :visible.sync="show_chart" append-to-body>
+            <div id="main" style="width: 600px;height:400px;"></div>
+            <el-footer align="center">
+                <span>综合评价：{{grade}}</span>
+            </el-footer>
+        </el-dialog>
+    </el-dialog>
+
 </div>
 {% endraw %}
 
@@ -325,11 +416,33 @@
                 kw_novels: [],
                 show_kw_chaps: false,
                 kw_chaps: [],
-                key_word: ''
+                key_word: '',
+                show_manual: false,
+                manual_form: {
+                    mkw: '',
+                    novel: ''
+                },
+                man_novels: [],
+                show_manual_list: false,
+                show_man_chap: false,
+                manual_list: [],
+                man_chap_list: [],
+                show_edit_pro: false,
+                show_judge: false,
+                judge_list: '',
+                show_chart: false,
+                chart: [],
+                charttt: '',
+                grade: ''
             }
         },
         created: function () {
             this.init();
+        },
+        mounted() {
+            this.$nextTick(function () {
+                this.chart_list()
+            })
         },
         methods: {
             init: function () {
@@ -363,6 +476,7 @@
                 }).then(() => {
                     this.isDisable = true
                     this.loading1 = true
+                    
                     axios.get('/get_list')
                         .then((res) => {
                             this.init()
@@ -571,7 +685,132 @@
                     console.log(err)
                 })
             },
+            get_man_novels() {
+                axios.get('/get_man_novels')
+                    .then((res) => {
+                        // console.log(res.data.data)
+                        this.man_novels = res.data.data
+                    }).catch((err) => {
+                        console.log(err)
+                    })
+            },
+            onSubmit() {
+                axios.get('/get_man_check', {
+                    params: {
+                        mkw: this.manual_form['mkw'],
+                        novel: this.manual_form['novel'],
+                    }
+                }).then((res) => {
+                    this.show_manual_list = true
+                    this.manual_list = res.data.data
+                }).catch((err) => {
+                    console.log(err)
+                })
+            },
+            get_man_chaps(val) {
+                axios.get('/get_man_chaps', {
+                    params: {
+                        book_id: this.manual_form['novel'],
+                        key_word: val
+                    }
+                }).then((res) => {
+                    arr = res.data.data
+                    arr.forEach(item => {
+                        console.log(item)
+                        let start = item[1].indexOf(val)
+                        item[1] = item[1].substring(0, start) + '<span style="background:yellow;">' + val + '</span>' + item[1].substring(start + val.length)
+                    });
+                    this.show_chap_list = true
+                    this.man_chap_list = arr
+                }).catch((err) => {
+                    console.log(err)
+                })
+            },
+            edit_pro() {
+                var pro = this.pro_values.join("  ")
+                console.log(pro)
+                axios.get('/save_pro', {
+                    params: {
+                        book_id: this.manual_form['novel'],
+                        pro: pro
+                    }
+                }).then((res) => {
 
+                    this.$message(res.data.data)
+                    this.show_edit_pro = false
+                }).catch((err) => {
+                    console.log(err)
+                })
+            },
+            get_judge() {
+                var pro = this.pro_values.join("  ")
+                console.log(pro)
+                axios.get('/get_judge')
+                    .then((res) => {
+                        this.judge_list = res.data.data
+                        this.chart = res.data.chart.map(item => ({ value: item[0], name: item[1] }))
+                        this.grade = res.data.grade
+                    })
+                    .catch((err) => {
+                        console.log(err)
+                    })
+            },
+            load_chart() {
+                this.$nextTick(function () {
+                    this.chart_list()
+                })
+            },
+            chart_list() {
+                var myChart = echarts.init(document.getElementById('main'));
+                legend_data = []
+                for (var i = 0; i < this.chart.length; i++) {
+                    legend_data[i] = this.chart[i][1] + ':' + this.chart[i][0]
+                }
+                console.log(legend_data)
+                myChart.setOption({
+                    title: {
+                        text: '已检测作品评定结果',
+                        // subtext: '纯属虚构',
+                        left: 'center'
+                    },
+                    tooltip: {
+                        trigger: 'item',
+                        formatter: '{a} <br/>{b} : {c} ({d}%)'
+                    },
+                    legend: {
+                        orient: 'vertical',
+                        left: 'right',
+                        data: ['A', 'B', 'C', 'D']
+                        // data: [],
+                    },
+                    series: [
+                        {
+                            name: '访问来源',
+                            type: 'pie',
+                            radius: '55%',
+                            center: ['50%', '50%'],
+                            data: [],
+                            // this.chart.map(item => ({ value: item[0], name: item[1]})),
+                            emphasis: {
+                                itemStyle: {
+                                    shadowBlur: 10,
+                                    shadowOffsetX: 0,
+                                    shadowColor: 'rgba(0, 0, 0, 0.5)'
+                                }
+                            }
+                        }
+                    ]
+                });
+                myChart.showLoading();
+                if (this.chart != null) {
+                    myChart.hideLoading();
+                    myChart.setOption({
+                        series: [{ data: this.chart }]
+                    });
+                }
+
+
+            }
         }
     })
 </script>
