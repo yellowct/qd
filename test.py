@@ -11,6 +11,7 @@ from itertools import chain
 app = Flask(__name__)
 db = pymysql.connect('localhost', 'root', '', 'qidian')
 mysql = db.cursor()
+novle_pro = 0
 
 
 @app.route('/')
@@ -107,7 +108,7 @@ def get_novel():
     # res = mysql.fetchall()
     # if res is None:
     get_content(book_id)
-    check_kw(book_id)
+    # check_kw(book_id)
     novel_info = get_novel_info(book_id)
     check_list = get_checked()
     # bad_chap = get_bad(book_id)
@@ -116,6 +117,13 @@ def get_novel():
         'data': novel_info,
         'check_list': check_list,
     })
+
+
+# 获取检测进度
+@app.route('/get_novel_pro', methods=['GET'])
+def get_novel_pro():
+    print(novle_pro)
+    return ({'code': 1, 'data': novle_pro})
 
 
 # 获取关键词检索列表
@@ -406,24 +414,24 @@ def get_novel_info(book_id):
 
 
 # 自动检测关键词
-def check_kw(book_id):
-    sql = "select novel,chapter,content from chapters where book_id = %s"
-    db.ping(reconnect=True)
-    mysql.execute(sql, book_id)
-    chap_list = mysql.fetchall()
-    for novel, tit, chap in chap_list:
-        sql = "select val from key_words"
-        db.ping(reconnect=True)
-        mysql.execute(sql)
-        word_list = mysql.fetchall()
-        for word in word_list:
-            if word[0] in chap:
-                words = len(chap)
-                word_nums = float(words) / 10000
-                sql = "insert into bad_chap (book_id,novel,chapter,key_word,word_nums) values (%s,%s,%s,%s,%s)"
-                db.ping(reconnect=True)
-                mysql.execute(sql, (book_id, novel, tit, word[0], word_nums))
-                db.commit()
+# def check_kw(book_id):
+#     sql = "select novel,chapter,content from chapters where book_id = %s"
+#     db.ping(reconnect=True)
+#     mysql.execute(sql, book_id)
+#     chap_list = mysql.fetchall()
+#     for novel, tit, chap in chap_list:
+#         sql = "select val from key_words"
+#         db.ping(reconnect=True)
+#         mysql.execute(sql)
+#         word_list = mysql.fetchall()
+#         for word in word_list:
+#             if word[0] in chap:
+#                 words = len(chap)
+#                 word_nums = float(words) / 10000
+#                 sql = "insert into bad_chap (book_id,novel,chapter,key_word,word_nums) values (%s,%s,%s,%s,%s)"
+#                 db.ping(reconnect=True)
+#                 mysql.execute(sql, (book_id, novel, tit, word[0], word_nums))
+#                 db.commit()
 
 
 def random_user_agent():
@@ -580,36 +588,53 @@ def get_content(book_id):
     url = "https://book.qidian.com/info/" + book_id
     html = requests.get(url, headers=headers).text
     html = etree.HTML(html)
-    name = html.xpath('//div[@class="book-info "]/h1/em/text()')  # 爬取书名
+    name = html.xpath('//div[@class="book-info "]/h1/em/text()')[0]  # 爬取书名
     author = html.xpath('//div[@class="book-info "]/h1/span/a/text()')  # 爬取作者名
     Lit_tit_list = html.xpath('//ul[@class="cf"]/li/a/text()')  # 爬取每个章节名字
     Lit_href_list = html.xpath('//ul[@class="cf"]/li/a/@href')  # 每个章节链接
     chap_nums = len(Lit_tit_list)
     # print(Lit_tit_list)
     # print(Lit_href_list)
-    stop = 1
+    stop = 0
     word_nums = 0
+    global novle_pro
     for tit, src in zip(Lit_tit_list, Lit_href_list):
+        stop += 1
         url = "http:" + src
         res = spider(url, headers)
         html = etree.HTML(res)
         text_list = html.xpath(
             '//div[@class="read-content j_readContent "]/p/text()')
         text = "".join(text_list).replace('　　', '')
-        word_nums += len(text)
+        single_nums = len(text)
+        word_nums += single_nums
         print("正在抓取文章：" + tit)
+        novle_pro = int(stop / chap_nums * 100)
+        print(novle_pro)
         sql = "insert IGNORE into chapters (book_id,novel,chapter,content) values (%s,%s,%s,%s)"
         db.ping(reconnect=True)
-        mysql.execute(sql, (book_id, name[0], tit, text))
+        mysql.execute(sql, (book_id, name, tit, text))
         db.commit()
+
+        sql = "select val from key_words"
+        db.ping(reconnect=True)
+        mysql.execute(sql)
+        word_list = mysql.fetchall()
+        for word in word_list:
+            if word[0] in text:
+                w_nums = float(single_nums) / 10000
+                sql = "insert into bad_chap (book_id,novel,chapter,key_word,word_nums) values (%s,%s,%s,%s,%s)"
+                db.ping(reconnect=True)
+                mysql.execute(sql, (book_id, name, tit, word[0], w_nums))
+                db.commit()
+
         if stop % 50 == 0:
             time.sleep(2)
-            print('休息2秒')
-        stop += 1
+            # print('休息2秒')
     word_nums = round(float(word_nums) / 10000, 2)
     sql = "insert into checked (book_id,name,author,chap_nums,word_nums) values (%s,%s,%s,%s,%s)"
     db.ping(reconnect=True)
-    mysql.execute(sql, (book_id, name[0], author[0], chap_nums, word_nums))
+    mysql.execute(sql, (book_id, name, author[0], chap_nums, word_nums))
     db.commit()
     return "爬取完成"
 

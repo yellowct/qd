@@ -12,7 +12,7 @@
         </el-col>
     </el-row>
     <template>
-        <el-table :data="table" style="width: 100%" border >
+        <el-table :data="table" style="width: 100%" border>
             <el-table-column prop="who" label="检测单位" width="200">
             </el-table-column>
             <el-table-column prop="count" label="数量" width="150">
@@ -55,6 +55,7 @@
                 <el-option v-for="item in list" :key="item.key" :label="item.value" :value="item.key">
                 </el-option>
             </el-select>
+            <el-progress :percentage="novel_pro" v-show="show_line"></el-progress>
             <el-header align="center" style="font-size: 24px;" v-model="novel_name">{{novel_name}}</el-header>
             <el-table :data="novel_result" style="width: 100%" border :show-header="false" v-loading="loading3"
                 element-loading-text="作品检测中，请稍后">
@@ -433,7 +434,9 @@
                 show_chart: false,
                 chart: [],
                 charttt: '',
-                grade: ''
+                grade: '',
+                novel_pro: '',
+                show_line:false
             }
         },
         created: function () {
@@ -476,7 +479,7 @@
                 }).then(() => {
                     this.isDisable = true
                     this.loading1 = true
-                    
+
                     axios.get('/get_list')
                         .then((res) => {
                             this.init()
@@ -526,21 +529,30 @@
             get_novel(val) {
                 this.loading3 = true
                 this.novel_id = val
+                this.show_line=true
+                var timer
+                timer = setInterval(this.get_novel_pro, 2000)
+                // timer
                 axios.get('/get_novel', {
                     params: {
                         id: val
                     }
                 }).then((res) => {
-                    this.novel_name = res.data.data[0]
-                    this.novel_result[0].con = res.data.data[1]
-                    this.novel_result[1].con = res.data.data[2]
-                    this.novel_result[2].con = res.data.data[3]
-                    this.novel_result[3].con = res.data.data[4]
-                    this.novel_result[4].con = '100%'
-                    this.novel_result[5].con = '100%'
-                    this.novel_result[6].con = this.percentage(res.data.data[5], res.data.data[3]) + '%'
-                    this.loading3 = false
-                    this.init()
+                    this.show_line=false
+                    this.novel_pro=''
+                    clearInterval(timer)
+                    if (res.data.data) {
+                        this.novel_name = res.data.data[0]
+                        this.novel_result[0].con = res.data.data[1]
+                        this.novel_result[1].con = res.data.data[2]
+                        this.novel_result[2].con = res.data.data[3]
+                        this.novel_result[3].con = res.data.data[4]
+                        this.novel_result[4].con = '100%'
+                        this.novel_result[5].con = '100%'
+                        this.novel_result[6].con = this.percentage(res.data.data[5], res.data.data[3]) + '%'
+                        this.loading3 = false
+                        this.init()
+                    }
                     // console.log(res.data.data)
                 }).catch((err) => {
                     console.log(err)
@@ -808,9 +820,17 @@
                         series: [{ data: this.chart }]
                     });
                 }
-
-
-            }
+            },
+            get_novel_pro() {
+                axios.get('/get_novel_pro')
+                    .then((res) => {
+                        console.log(res.data.data)
+                        this.novel_pro = res.data.data
+                    })
+                    .catch((err) => {
+                        console.log(err)
+                    })
+            },
         }
     })
 </script>
