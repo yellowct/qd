@@ -7,11 +7,14 @@ from lxml import etree
 from requests.cookies import RequestsCookieJar
 import time
 from itertools import chain
+import threading
 
 app = Flask(__name__)
 db = pymysql.connect('localhost', 'root', '', 'qidian')
 mysql = db.cursor()
 novle_pro = 0
+is_running = 1
+lock = threading.Lock()
 
 
 @app.route('/')
@@ -107,33 +110,59 @@ def get_novel():
     mysql.execute(sql, book_id)
     # res = mysql.fetchall()
     # if res is None:
-    get_content(book_id)
-    # check_kw(book_id)
-    novel_info = get_novel_info(book_id)
-    check_list = get_checked()
-    # bad_chap = get_bad(book_id)
-    return ({
-        'code': 1,
-        'data': novel_info,
-        'check_list': check_list,
-    })
+    spider = get_content(book_id)
+    if spider == '爬取中断':
+        exit()
+    else:
+        novel_info = get_novel_info(book_id)
+        check_list = get_checked()
+        # bad_chap = get_bad(book_id)
+        return ({
+            'code': 1,
+            'data': novel_info,
+            'check_list': check_list,
+        })
+
+
+# 删除正在爬取的文章
+@app.route('/delete_novel', methods=['GET'])
+def delete_novel():
+    global is_running
+    is_running = 0
+    time.sleep(1)
+    book_id = request.args.get('id')
+    sql1 = "delete from chapters where book_id = %s"
+    sql2 = "delete from bad_chap where book_id = %s"
+    sql3 = "delete from checked where book_id = %s"
+    # lock.acquire()
+    try:
+        mysql.execute(sql1, book_id)
+        mysql.execute(sql2, book_id)
+        mysql.execute(sql3, book_id)
+    except Exception as e:
+        db.rollback()  # 事务回滚
+        print('事务处理失败', e)
+    else:
+        db.commit()  # 事务提交
+        print('事务处理成功', mysql.rowcount)
+    is_running = 1
+    return ({'code': 1, 'data': '取消成功'})
 
 
 # 获取检测进度
 @app.route('/get_novel_pro', methods=['GET'])
 def get_novel_pro():
-    print(novle_pro)
     return ({'code': 1, 'data': novle_pro})
 
 
 # 获取关键词检索列表
 @app.route('/get_akw_list', methods=['GET'])
 def get_akw_list():
-    sql = "select key_word,count(key_word),count(distinct book_id) from bad_chap group by key_word"
+    sql = "select key_word,count(key_word),count(distinct book_id) from bad_chap group by key_word order by count(key_word) DESC,count(distinct book_id) DESC"
     db.ping(reconnect=True)
     mysql.execute(sql)
     res = mysql.fetchall()
-    print(res)
+    # print(res)
     # get_content(book_id)
     # check_kw(book_id)
     # bad_chap = get_bad(book_id)
@@ -144,10 +173,11 @@ def get_akw_list():
 @app.route('/get_kw_novels', methods=['GET'])
 def get_kw_novels():
     key_word = request.args.get('key_word')
-    sql = "select novel,count(key_word) from bad_chap where key_word = %s group by key_word,novel"
+    sql = "select novel,author,count(key_word) from bad_chap where key_word = %s group by key_word,novel,author order by count(key_word) desc"
     db.ping(reconnect=True)
     mysql.execute(sql, key_word)
     res = mysql.fetchall()
+    # print(res)
     return ({'code': 1, 'data': res})
 
 
@@ -246,7 +276,8 @@ def get_man_check():
                 count += 1
         res.append(count)
         res_list.append(res)
-    return ({'code': 1, 'data': res_list})
+    novel_info = get_novel_info(book_id)
+    return ({'code': 1, 'data': res_list, 'novel_info': novel_info})
 
 
 # 获取人工检测章节列表
@@ -286,7 +317,7 @@ def get_judge():
     bad_n = mysql.fetchone()
     n_score = nc_score(bad_n[0], n_count)
     # print(n_score)
-    sql = "select name from checked"
+    sql = "select name,author from checked"
     db.ping(reconnect=True)
     mysql.execute(sql)
     res = mysql.fetchall()
@@ -294,10 +325,12 @@ def get_judge():
     for novel in res:
         arr = []
         arr.append(novel[0])
+        arr.append(novel[1])
         sql = "select chapter,count(distinct chapter),word_nums from bad_chap where novel = %s group by chapter,word_nums"
         db.ping(reconnect=True)
-        mysql.execute(sql, novel)
+        mysql.execute(sql, novel[0])
         res = mysql.fetchall()
+        print(res)
         # 问题章节
         c_num = len(res)
         c_score = nc_score(c_num, c_count)
@@ -310,11 +343,11 @@ def get_judge():
         wd_score = w_score(w_num, w_count)
         score = n_score + c_score + wd_score
         arr.append(score)
-        if arr[1] > 12:
+        if arr[2] > 12:
             arr.append('A')
-        elif arr[1] > 9 and arr[1] <= 12:
+        elif arr[2] > 9 and arr[2] <= 12:
             arr.append('B')
-        elif arr[1] > 6 and arr[1] <= 9:
+        elif arr[2] > 6 and arr[2] <= 9:
             arr.append('C')
         else:
             arr.append('D')
@@ -323,6 +356,7 @@ def get_judge():
     grade = get_grade(n_count, t.count('C'), t.count('D'))
     chart = [[t.count('A'), 'A'], [t.count('B'), 'B'], [t.count('C'), 'C'],
              [t.count('D'), 'D']]
+    print(arr1)
     return ({'code': 1, 'data': arr1, 'chart': chart, 'grade': grade})
 
 
@@ -400,7 +434,7 @@ def get_checked():
 
 # 添加作品检测结果
 def get_novel_info(book_id):
-    sql = "select a.name,a.author,b.type,a.chap_nums,a.word_nums from checked a left join novels b on a.book_id=b.book_id where a.book_id  = %s"
+    sql = "select a.name,a.author,b.type,a.chap_nums,a.word_nums,a.pro from checked a left join novels b on a.book_id=b.book_id where a.book_id  = %s"
     db.ping(reconnect=True)
     mysql.execute(sql, book_id)
     res1 = mysql.fetchone()
@@ -589,7 +623,8 @@ def get_content(book_id):
     html = requests.get(url, headers=headers).text
     html = etree.HTML(html)
     name = html.xpath('//div[@class="book-info "]/h1/em/text()')[0]  # 爬取书名
-    author = html.xpath('//div[@class="book-info "]/h1/span/a/text()')  # 爬取作者名
+    author = html.xpath('//div[@class="book-info "]/h1/span/a/text()')[
+        0]  # 爬取作者名
     Lit_tit_list = html.xpath('//ul[@class="cf"]/li/a/text()')  # 爬取每个章节名字
     Lit_href_list = html.xpath('//ul[@class="cf"]/li/a/@href')  # 每个章节链接
     chap_nums = len(Lit_tit_list)
@@ -598,45 +633,53 @@ def get_content(book_id):
     stop = 0
     word_nums = 0
     global novle_pro
+    global is_running
     for tit, src in zip(Lit_tit_list, Lit_href_list):
-        stop += 1
-        url = "http:" + src
-        res = spider(url, headers)
-        html = etree.HTML(res)
-        text_list = html.xpath(
-            '//div[@class="read-content j_readContent "]/p/text()')
-        text = "".join(text_list).replace('　　', '')
-        single_nums = len(text)
-        word_nums += single_nums
-        print("正在抓取文章：" + tit)
-        novle_pro = int(stop / chap_nums * 100)
-        print(novle_pro)
-        sql = "insert IGNORE into chapters (book_id,novel,chapter,content) values (%s,%s,%s,%s)"
+        if is_running == 1:
+            stop += 1
+            url = "http:" + src
+            res = spider(url, headers)
+            html = etree.HTML(res)
+            text_list = html.xpath(
+                '//div[@class="read-content j_readContent "]/p/text()')
+            text = "".join(text_list).replace('　　', '')
+            single_nums = len(text)
+            word_nums += single_nums
+            print("正在抓取：" + tit)
+            novle_pro = int(stop / chap_nums * 100)
+            # print(novle_pro)
+            sql = "insert IGNORE into chapters (book_id,novel,chapter,content) values (%s,%s,%s,%s)"
+            db.ping(reconnect=True)
+            mysql.execute(sql, (book_id, name, tit, text))
+            db.commit()
+
+            sql = "select val from key_words"
+            db.ping(reconnect=True)
+            mysql.execute(sql)
+            word_list = mysql.fetchall()
+            for word in word_list:
+                if word[0] in text:
+                    w_nums = float(single_nums) / 10000
+                    sql = "insert into bad_chap (book_id,novel,author,chapter,key_word,word_nums) values (%s,%s,%s,%s,%s,%s)"
+                    db.ping(reconnect=True)
+                    mysql.execute(
+                        sql, (book_id, name, author, tit, word[0], w_nums))
+                    db.commit()
+
+            if stop % 50 == 0:
+                time.sleep(2)
+        else:
+            break
+
+    if is_running == 1:
+        word_nums = round(float(word_nums) / 10000, 2)
+        sql = "insert into checked (book_id,name,author,chap_nums,word_nums) values (%s,%s,%s,%s,%s)"
         db.ping(reconnect=True)
-        mysql.execute(sql, (book_id, name, tit, text))
+        mysql.execute(sql, (book_id, name, author, chap_nums, word_nums))
         db.commit()
-
-        sql = "select val from key_words"
-        db.ping(reconnect=True)
-        mysql.execute(sql)
-        word_list = mysql.fetchall()
-        for word in word_list:
-            if word[0] in text:
-                w_nums = float(single_nums) / 10000
-                sql = "insert into bad_chap (book_id,novel,chapter,key_word,word_nums) values (%s,%s,%s,%s,%s)"
-                db.ping(reconnect=True)
-                mysql.execute(sql, (book_id, name, tit, word[0], w_nums))
-                db.commit()
-
-        if stop % 50 == 0:
-            time.sleep(2)
-            # print('休息2秒')
-    word_nums = round(float(word_nums) / 10000, 2)
-    sql = "insert into checked (book_id,name,author,chap_nums,word_nums) values (%s,%s,%s,%s,%s)"
-    db.ping(reconnect=True)
-    mysql.execute(sql, (book_id, name, author[0], chap_nums, word_nums))
-    db.commit()
-    return "爬取完成"
+        return "爬取完成"
+    else:
+        return "爬取中断"
 
 
 # 爬取各类型小说的信息

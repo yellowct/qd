@@ -36,7 +36,7 @@
     <br><br>
     <el-row style="text-align: center;">
         <el-col :span="6">
-            <el-button type="primary" @click="show_novel=true">添加作品</el-button>
+            <el-button type="primary" @click="show_novel=true,novel_clean()">添加作品</el-button>
         </el-col>
         <el-col :span="6">
             <el-button type="primary" @click="show_akw_list=true,get_akw_list()">关键词抽检</el-button>
@@ -50,11 +50,20 @@
     </el-row>
     <el-dialog title="作品检测" :visible.sync="show_novel">
         <template>
-            <el-select v-model="value" filterable remote reserve-keyword placeholder="请输入作品名称"
-                :remote-method="remoteMethod" :loading="loading2" @change="get_novel">
-                <el-option v-for="item in list" :key="item.key" :label="item.value" :value="item.key">
-                </el-option>
-            </el-select>
+            <el-row style="text-align: center;">
+                <el-col :span="16">
+                    <el-select v-model="novel_id" filterable remote reserve-keyword placeholder="请输入作品名称"
+                        :remote-method="remoteMethod" :loading="loading2">
+                        <el-option v-for="item in list" :key="item.key" :label="item.value" :value="item.key">
+                        </el-option>
+                    </el-select>
+                </el-col>
+                <el-col :span="8">
+                    <el-button type="primary" @click="get_novel()" v-if="isRuning==false">检索</el-button>
+                    <el-button type="primary" @click="cancel()" v-else>取消</el-button>
+                </el-col>
+            </el-row>
+            <br>
             <el-progress :percentage="novel_pro" v-show="show_line"></el-progress>
             <el-header align="center" style="font-size: 24px;" v-model="novel_name">{{novel_name}}</el-header>
             <el-table :data="novel_result" style="width: 100%" border :show-header="false" v-loading="loading3"
@@ -143,9 +152,15 @@
                         </span>
                     </template>
                 </el-table-column>
+                <el-table-column label="作者信息" width="180">
+                    <template slot-scope="scope">
+                        <span style="margin-left: 10px">{{ scope.row[1]}}
+                        </span>
+                    </template>
+                </el-table-column>
                 <el-table-column label="出现次数" width="180">
                     <template slot-scope="scope">
-                        <span style="margin-left: 10px">{{ scope.row[1]}}</span>
+                        <span style="margin-left: 10px">{{ scope.row[2]}}</span>
                     </template>
                 </el-table-column>
                 <el-table-column label="出现章节">
@@ -188,6 +203,19 @@
             </el-form-item>
         </el-form>
         <el-dialog title="人工抽检结果" :visible.sync="show_manual_list" append-to-body>
+            <el-header align="center" style="font-size: 24px;" v-model="novel_name">{{novel_name}}</el-header>
+            <el-table :data="novel_result" style="width: 100%" border :show-header="false">
+                <el-table-column prop="tit" width="350">
+                    <template slot-scope="scope">
+                        <span style="margin-left: 10px" v-if="scope.row.tit=='存在问题'">{{scope.row.tit}}&nbsp;
+                            <el-button type="primary" size="mini" @click="show_select_pro=true">编辑</el-button></span>
+                        <span style="margin-left: 10px" v-else>{{scope.row.tit}}</span>
+                    </template>
+                </el-table-column>
+                <el-table-column prop="con" min-width="300">
+                </el-table-column>
+            </el-table>
+            <br>
             <el-table :data="manual_list" style="width: 100%" border>
                 <el-table-column label="关键词" width="180">
                     <template slot-scope="scope">
@@ -207,7 +235,14 @@
                 </el-table-column>
             </el-table>
             <br>
-            <el-footer align="center">
+            <el-dialog title="编辑存在问题" :visible.sync="show_select_pro" append-to-body>
+                <el-select v-model="pro_values" multiple placeholder="请选择" style="width: 500px;">
+                    <el-option v-for="item in pro_options" :key="item.value" :label="item.label" :value="item.label">
+                    </el-option>
+                </el-select>
+                <el-button type="primary" size="mini" @click="save_pro()">保存</el-button>
+            </el-dialog>
+            <!-- <el-footer align="center">
                 <el-button type="primary" @click="show_edit_pro=true">存在问题编辑</el-button>
             </el-footer>
             <el-dialog title="编辑存在问题" :visible.sync="show_edit_pro" append-to-body>
@@ -216,7 +251,7 @@
                     </el-option>
                 </el-select>
                 <el-button type="primary" size="mini" @click="edit_pro()">保存</el-button>
-            </el-dialog>
+            </el-dialog> -->
             <el-dialog title="敏感章节列表" :visible.sync="show_chap_list" append-to-body>
                 <el-table :data="man_chap_list" style="width: 100%" border>
                     <el-table-column label="章节" width="100">
@@ -240,13 +275,18 @@
                     <span style="margin-left: 10px">{{ scope.row[0]}}</span>
                 </template>
             </el-table-column>
-            <el-table-column label="检测分数" width="180">
+            <el-table-column label="作者信息" width="180">
                 <template slot-scope="scope">
                     <span style="margin-left: 10px">{{ scope.row[1]}}</span>
                 </template>
             </el-table-column>
+            <el-table-column label="检测分数" width="180">
+                <template slot-scope="scope">
+                    <span style="margin-left: 10px">{{ scope.row[2]}}</span>
+                </template>
+            </el-table-column>
             <el-table-column label="检测结果评级">
-                <template slot-scope="scope">{{ scope.row[2]}}
+                <template slot-scope="scope">{{ scope.row[3]}}
                 </template>
             </el-table-column>
         </el-table>
@@ -272,6 +312,9 @@
         el: '#qidian',
         data() {
             return {
+                timer: '',
+                cancelSource: '',
+                isRuning: false,
                 table: [{
                     who: '网络信息检测后台',
                     date: '',
@@ -355,7 +398,6 @@
                 isDisable: false,
                 loading1: false,
                 options: [],
-                value: [],
                 list: [],
                 loading2: false,
                 states: [],
@@ -436,7 +478,7 @@
                 charttt: '',
                 grade: '',
                 novel_pro: '',
-                show_line:false
+                show_line: false
             }
         },
         created: function () {
@@ -526,21 +568,16 @@
                     this.options = [];
                 }
             },
-            get_novel(val) {
+            get_novel() {
                 this.loading3 = true
-                this.novel_id = val
-                this.show_line=true
-                var timer
-                timer = setInterval(this.get_novel_pro, 2000)
-                // timer
-                axios.get('/get_novel', {
-                    params: {
-                        id: val
-                    }
+                this.show_line = true
+                this.isRuning = true
+                this.timer = setInterval(this.get_novel_pro, 2000)
+                axios.get('/get_novel?id=' + this.novel_id, {
                 }).then((res) => {
-                    this.show_line=false
-                    this.novel_pro=''
-                    clearInterval(timer)
+                    this.show_line = false
+                    this.novel_pro = ''
+                    clearInterval(this.timer)
                     if (res.data.data) {
                         this.novel_name = res.data.data[0]
                         this.novel_result[0].con = res.data.data[1]
@@ -549,14 +586,31 @@
                         this.novel_result[3].con = res.data.data[4]
                         this.novel_result[4].con = '100%'
                         this.novel_result[5].con = '100%'
-                        this.novel_result[6].con = this.percentage(res.data.data[5], res.data.data[3]) + '%'
+                        this.novel_result[6].con = this.percentage(res.data.data[6], res.data.data[3]) + '%'
+                        this.novel_result[7].con = res.data.novel_info[5]
                         this.loading3 = false
                         this.init()
                     }
-                    // console.log(res.data.data)
-                }).catch((err) => {
-                    console.log(err)
                 })
+            },
+            cancel() {
+                // if (this.cancelSource) {
+                    clearInterval(this.timer)
+                    axios.get('/delete_novel', {
+                        params: {
+                            id: this.novel_id,
+                        }
+                    }).then((res) => {
+                        this.novel_clean()
+                        this.isRuning = false
+                        this.loading3 = false
+                        // console.log(res.data.data)
+                    }).catch((err) => {
+                        console.log(err)
+                    })
+
+                // }
+
             },
             percentage(a, b) {
                 if (!a || !b) {
@@ -568,16 +622,18 @@
             novel_clean() {
                 // this.novel_id = '',
                 this.novel_id = ''
-                this.novel_name = '',
-                    this.novel_result[0].con = ''
+                this.novel_name = ''
+                this.novel_result[0].con = ''
                 this.novel_result[1].con = ''
                 this.novel_result[2].con = ''
                 this.novel_result[3].con = ''
                 this.novel_result[4].con = ''
                 this.novel_result[5].con = ''
                 this.novel_result[6].con = ''
+                this.novel_result[7].con = ''
                 this.novel_kw_list = []
                 this.chap_list = []
+                this.novel_pro =''
             },
             get_kw_list() {
                 axios.get('/get_novel_kw_list', {
@@ -698,6 +754,7 @@
                 })
             },
             get_man_novels() {
+                this.novel_clean()
                 axios.get('/get_man_novels')
                     .then((res) => {
                         // console.log(res.data.data)
@@ -714,6 +771,15 @@
                     }
                 }).then((res) => {
                     this.show_manual_list = true
+                    this.novel_name = res.data.novel_info[0]
+                    this.novel_result[0].con = res.data.novel_info[1]
+                    this.novel_result[1].con = res.data.novel_info[2]
+                    this.novel_result[2].con = res.data.novel_info[3]
+                    this.novel_result[3].con = res.data.novel_info[4]
+                    this.novel_result[4].con = '100%'
+                    this.novel_result[5].con = '100%'
+                    this.novel_result[6].con = this.percentage(res.data.novel_info[6], res.data.novel_info[3]) + '%'
+                    this.novel_result[7].con = res.data.novel_info[5]
                     this.manual_list = res.data.data
                 }).catch((err) => {
                     console.log(err)
